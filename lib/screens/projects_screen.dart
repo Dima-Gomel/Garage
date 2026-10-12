@@ -1,37 +1,32 @@
 import 'package:flutter/material.dart';
+
+import '../data/project_repository.dart';
 import '../models/project.dart';
 import '../theme/app_theme.dart';
 import '../widgets/project_card.dart';
 
 /// Главный экран — список проектов.
-/// 
-/// StatefulWidget — потому что экран ПОМНИТ список проектов
-/// и должен перерисовываться, когда список меняется.
+///
+/// Данные приходят из ProjectRepository (stream из drift).
+/// StatefulWidget оставляем — нужен context для модалки и SnackBar.
 class ProjectsScreen extends StatefulWidget {
-  const ProjectsScreen({super.key});
+  const ProjectsScreen({super.key, required this.repository});
+
+  /// Репозиторий — источник данных. Передан из main.dart.
+  final ProjectRepository repository;
 
   @override
   State<ProjectsScreen> createState() => _ProjectsScreenState();
 }
 
-/// Класс состояния. Здесь живут данные и логика экрана.
 class _ProjectsScreenState extends State<ProjectsScreen> {
-  /// Список проектов в памяти. Пока без БД.
-  /// Фигурные скобки [...] — это литерал списка.
-  final List<Project> _projects = [];
-
-  /// Счётчик для генерации ID. Простейший вариант —
-  /// потом заменим на UUID или автоинкремент из БД.
-  int _nextId = 1;
-
   /// Открыть окно создания нового проекта.
-  /// async — потому что showModalBottomSheet возвращает Future,
-  /// которая завершается, когда окно закрыли.
+  ///
+  /// showModalBottomSheet возвращает `Future<String?>` — текст,
+  /// который ввёл пользователь (или null, если закрыл).
   Future<void> _openNewProjectSheet() async {
     final result = await showModalBottomSheet<String>(
       context: context,
-      // isScrollControlled — окно может быть выше половины экрана,
-      // нужно чтобы не обрезалось, когда откроется клавиатура.
       isScrollControlled: true,
       backgroundColor: AppTheme.surface,
       shape: const RoundedRectangleBorder(
@@ -40,44 +35,56 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       builder: (context) => const _NewProjectSheet(),
     );
 
-    // result — то, что вернуло окно. Если null — пользователь закрыл без ввода.
+    // Пользователь закрыл окно без ввода — выходим.
     if (result == null || result.trim().isEmpty) return;
 
-    // Создаём новый проект и добавляем в список.
-    final now = DateTime.now();
-    final newProject = Project(
-      id: _nextId.toString(),
-      title: result.trim(),
-      createdAt: now,
-      updatedAt: now,
-    );
-
-    // setState — говорим Flutter: "данные поменялись, перерисуй экран".
-    // Без setState изменения в UI не отобразятся.
-    setState(() {
-      _projects.add(newProject);
-      _nextId++;
-    });
+    // Создаём проект в БД. Стрим watchAllProjects() сам
+    // пришлёт обновление — перерисовывать через setState не нужно.
+    await widget.repository.createProject(title: result.trim());
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Scaffold — стандартный "каркас" экрана:
-      // appBar сверху, body по центру, floatingActionButton внизу.
       appBar: AppBar(
         title: const Text('🔧 Garage'),
-        // Настройки темы уже применяются из AppTheme.dark,
-        // тут ничего переопределять не нужно.
       ),
 
       // === ТЕЛО ЭКРАНА ===
-      body: _projects.isEmpty
-          ? _buildEmptyState()
-          : _buildProjectsList(),
+      // StreamBuilder — виджет, который слушает стрим и
+      // перестраивается при каждом новом значении.
+      body: StreamBuilder<List<Project>>(
+        stream: widget.repository.watchAllProjects(),
+        builder: (context, snapshot) {
+          // Пока стрим не прислал первое значение — крутим спиннер.
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-      // === ПЛАВАЮЩАЯ КНОПКА ВНИЗУ ===
-      // Большая кнопка под большой палец, справа внизу.
+          // Если drift прислал ошибку — покажем её текстом.
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'Ошибка загрузки проектов:\n${snapshot.error}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppTheme.textSecondary),
+                ),
+              ),
+            );
+          }
+
+          // Данные пришли (может быть пустой список).
+          final projects = snapshot.data ?? const <Project>[];
+
+          if (projects.isEmpty) {
+            return _buildEmptyState();
+          }
+          return _buildProjectsList(projects);
+        },
+      ),
+
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openNewProjectSheet,
         backgroundColor: AppTheme.accent,
@@ -102,7 +109,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Иконка — большая, блёклая.
             Icon(
               Icons.build_circle_outlined,
               size: 96,
@@ -132,22 +138,17 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
-  /// Список проектов.
-  Widget _buildProjectsList() {
-    // ListView.builder — эффективный список.
-    // Он рисует ТОЛЬКО видимые карточки, а не все сразу.
-    // Важно, когда проектов станет много.
+  /// Список проектов. Принимает список из StreamBuilder.
+  Widget _buildProjectsList(List<Project> projects) {
     return ListView.builder(
-      // Отступы сверху/снизу, чтобы карточки не липли к краям.
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: _projects.length,
+      itemCount: projects.length,
       itemBuilder: (context, index) {
-        final project = _projects[index];
+        final project = projects[index];
         return ProjectCard(
           project: project,
           onTap: () {
-            // Пока просто заглушка. Открытие карточки проекта
-            // сделаем на следующем шаге.
+            // Пока заглушка — открытие экрана проекта сделаем дальше.
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('Открыть: ${project.title}'),
@@ -162,7 +163,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 }
 
 /// Всплывающее окно снизу для создания нового проекта.
-/// Приватный виджет, используется только на этом экране.
+/// Не изменилось — логика ввода та же, только теперь
+/// текст уходит в repository.createProject().
 class _NewProjectSheet extends StatefulWidget {
   const _NewProjectSheet();
 
@@ -171,33 +173,23 @@ class _NewProjectSheet extends StatefulWidget {
 }
 
 class _NewProjectSheetState extends State<_NewProjectSheet> {
-  /// TextEditingController — "ручка" для текстового поля.
-  /// Через него читаем и пишем текст в поле.
   final _controller = TextEditingController();
 
   @override
   void dispose() {
-    // dispose — вызывается, когда виджет удаляется.
-    // Контроллеры нужно освобождать, иначе утечка памяти.
     _controller.dispose();
     super.dispose();
   }
 
-  /// Закрыть окно и вернуть введённый текст.
   void _submit() {
-    // Navigator.pop — закрыть текущий экран/окно.
-    // Передаём результат — его получит тот, кто открыл окно.
     Navigator.of(context).pop(_controller.text);
   }
 
   @override
   Widget build(BuildContext context) {
-    // MediaQuery — доступ к информации об устройстве,
-    // здесь — высота клавиатуры, чтобы поднять окно над ней.
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
-      // padding добавляет отступ снизу, равный высоте клавиатуры.
       padding: EdgeInsets.only(bottom: bottomInset),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -205,7 +197,6 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // "Ручка" сверху — визуальный намёк, что окно можно тащить вниз.
             Center(
               child: Container(
                 width: 40,
@@ -228,10 +219,9 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
             ),
             const SizedBox(height: 16),
 
-            // Поле ввода названия.
             TextField(
               controller: _controller,
-              autofocus: true, // сразу открыть клавиатуру
+              autofocus: true,
               style: const TextStyle(
                 fontSize: 18,
                 color: AppTheme.textPrimary,
@@ -248,12 +238,10 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
                   borderSide: BorderSide.none,
                 ),
               ),
-              // Что делать, когда нажали Enter на клавиатуре.
               onSubmitted: (_) => _submit(),
             ),
             const SizedBox(height: 16),
 
-            // Кнопка "Создать" — большая, во всю ширину.
             SizedBox(
               height: 56,
               child: ElevatedButton(
