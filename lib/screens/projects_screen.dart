@@ -4,15 +4,12 @@ import '../data/project_repository.dart';
 import '../models/project.dart';
 import '../theme/app_theme.dart';
 import '../widgets/project_card.dart';
+import 'project_screen.dart';
 
 /// Главный экран — список проектов.
-///
-/// Данные приходят из ProjectRepository (stream из drift).
-/// StatefulWidget оставляем — нужен context для модалки и SnackBar.
 class ProjectsScreen extends StatefulWidget {
   const ProjectsScreen({super.key, required this.repository});
 
-  /// Репозиторий — источник данных. Передан из main.dart.
   final ProjectRepository repository;
 
   @override
@@ -20,10 +17,6 @@ class ProjectsScreen extends StatefulWidget {
 }
 
 class _ProjectsScreenState extends State<ProjectsScreen> {
-  /// Открыть окно создания нового проекта.
-  ///
-  /// showModalBottomSheet возвращает `Future<String?>` — текст,
-  /// который ввёл пользователь (или null, если закрыл).
   Future<void> _openNewProjectSheet() async {
     final result = await showModalBottomSheet<String>(
       context: context,
@@ -35,12 +28,21 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       builder: (context) => const _NewProjectSheet(),
     );
 
-    // Пользователь закрыл окно без ввода — выходим.
     if (result == null || result.trim().isEmpty) return;
 
-    // Создаём проект в БД. Стрим watchAllProjects() сам
-    // пришлёт обновление — перерисовывать через setState не нужно.
     await widget.repository.createProject(title: result.trim());
+  }
+
+  /// Открыть экран проекта.
+  void _openProject(Project project) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProjectScreen(
+          repository: widget.repository,
+          projectId: int.parse(project.id),
+        ),
+      ),
+    );
   }
 
   @override
@@ -49,19 +51,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       appBar: AppBar(
         title: const Text('🔧 Garage'),
       ),
-
-      // === ТЕЛО ЭКРАНА ===
-      // StreamBuilder — виджет, который слушает стрим и
-      // перестраивается при каждом новом значении.
       body: StreamBuilder<List<Project>>(
         stream: widget.repository.watchAllProjects(),
         builder: (context, snapshot) {
-          // Пока стрим не прислал первое значение — крутим спиннер.
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // Если drift прислал ошибку — покажем её текстом.
           if (snapshot.hasError) {
             return Center(
               child: Padding(
@@ -75,7 +71,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             );
           }
 
-          // Данные пришли (может быть пустой список).
           final projects = snapshot.data ?? const <Project>[];
 
           if (projects.isEmpty) {
@@ -84,7 +79,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           return _buildProjectsList(projects);
         },
       ),
-
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openNewProjectSheet,
         backgroundColor: AppTheme.accent,
@@ -101,7 +95,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
-  /// Что показываем, когда проектов нет.
   Widget _buildEmptyState() {
     return Center(
       child: Padding(
@@ -138,7 +131,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
-  /// Список проектов. Принимает список из StreamBuilder.
   Widget _buildProjectsList(List<Project> projects) {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -147,15 +139,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         final project = projects[index];
         return ProjectCard(
           project: project,
-          onTap: () {
-            // Пока заглушка — открытие экрана проекта сделаем дальше.
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Открыть: ${project.title}'),
-                duration: const Duration(seconds: 1),
-              ),
-            );
-          },
+          onTap: () => _openProject(project),
         );
       },
     );
@@ -163,8 +147,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 }
 
 /// Всплывающее окно снизу для создания нового проекта.
-/// Не изменилось — логика ввода та же, только теперь
-/// текст уходит в repository.createProject().
 class _NewProjectSheet extends StatefulWidget {
   const _NewProjectSheet();
 
@@ -208,7 +190,6 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
               ),
             ),
             const SizedBox(height: 20),
-
             const Text(
               'Новый проект',
               style: TextStyle(
@@ -218,7 +199,6 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
               ),
             ),
             const SizedBox(height: 16),
-
             TextField(
               controller: _controller,
               autofocus: true,
@@ -241,7 +221,6 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
               onSubmitted: (_) => _submit(),
             ),
             const SizedBox(height: 16),
-
             SizedBox(
               height: 56,
               child: ElevatedButton(

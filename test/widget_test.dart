@@ -14,6 +14,10 @@ class FakeProjectRepository implements ProjectRepository {
       Stream.value(const <Project>[]);
 
   @override
+  Stream<Project?> watchProject(int id) =>
+      Stream.value(null);
+
+  @override
   Future<int> createProject({
     required String title,
     String description = '',
