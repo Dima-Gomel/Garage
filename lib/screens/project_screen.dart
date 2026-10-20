@@ -9,7 +9,7 @@ import '../theme/app_theme.dart';
 /// Показывает title / статус / описание / дату.
 /// Слушает watchProject(id) — если проект удалят или
 /// поменяют статус, экран перерисуется сам.
-class ProjectScreen extends StatelessWidget {
+class ProjectScreen extends StatefulWidget {
   const ProjectScreen({
     super.key,
     required this.repository,
@@ -22,6 +22,18 @@ class ProjectScreen extends StatelessWidget {
   /// конвертация происходит на вызывающей стороне).
   final int projectId;
 
+  @override
+  State<ProjectScreen> createState() => _ProjectScreenState();
+}
+
+class _ProjectScreenState extends State<ProjectScreen> {
+  /// true, пока идёт удаление — блокируем кнопку и показываем спиннер.
+  bool _isDeleting = false;
+
+  // Мостики к полям родителя, чтобы не переписывать весь код ниже.
+  ProjectRepository get repository => widget.repository;
+  int get projectId => widget.projectId;
+
   /// Цвет для бейджа статуса (та же логика, что в ProjectCard).
   Color _statusColor(ProjectStatus status) {
     return switch (status) {
@@ -32,11 +44,112 @@ class ProjectScreen extends StatelessWidget {
     };
   }
 
+  /// Открыть bottom sheet со списком статусов.
+  /// Возвращает выбранный статус или null, если закрыли без выбора.
+  Future<void> _openStatusSheet(BuildContext context, Project project) async {
+    final selected = await showModalBottomSheet<ProjectStatus>(
+      context: context,
+      backgroundColor: AppTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => _StatusSheet(current: project.status),
+    );
+
+    if (selected == null) return;
+    if (selected == project.status) return; // тот же статус — ничего не делаем
+
+    // Вызываем репозиторий. Стрим watchProject сам пришлёт обновление,
+    // setState не нужен.
+    await repository.updateProjectStatus(
+      int.parse(project.id),
+      selected,
+    );
+  }
+
+  /// Диалог подтверждения удаления + само удаление.
+  Future<void> _confirmDelete() async {
+    // 1. Спрашиваем подтверждение.
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: const Text(
+          'Удалить проект?',
+          style: TextStyle(color: AppTheme.textPrimary),
+        ),
+        content: const Text(
+          'Это действие нельзя отменить.',
+          style: TextStyle(color: AppTheme.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text(
+              'Отмена',
+              style: TextStyle(color: AppTheme.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text(
+              'Удалить',
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return; // отмена — ничего не делаем
+
+    // 2. Ставим флаг — блокируем повторное нажатие + спиннер.
+    setState(() => _isDeleting = true);
+
+    try {
+      await repository.deleteProject(projectId);
+
+      // 3. ВАЖНО: после await проверяем, что экран ещё жив.
+      // Пользователь мог нажать «назад», пока мы ждали БД.
+      if (!mounted) return;
+
+      // 4. Возвращаемся на главный экран.
+      // Список там обновится сам (watchAllProjects).
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isDeleting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Не удалось удалить: $e'),
+          backgroundColor: Colors.red.shade800,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Проект'),
+        actions: [
+          IconButton(
+            icon: _isDeleting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.delete_outline),
+            color: AppTheme.statusFrozen,
+            tooltip: 'Удалить проект',
+            onPressed: _isDeleting ? null : _confirmDelete,
+          ),
+        ],
       ),
       body: StreamBuilder<Project?>(
         stream: repository.watchProject(projectId),
@@ -70,7 +183,42 @@ class ProjectScreen extends StatelessWidget {
             );
           }
 
-          return _buildContent(project);
+          return Column(
+            children: [
+              // Контент — скроллится.
+              Expanded(child: _buildContent(project)),
+
+              // Кнопка «Сменить статус» — всегда внизу, под большим пальцем.
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                  child: SizedBox(
+                    height: 56,
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _openStatusSheet(context, project),
+                      icon: const Icon(Icons.swap_horiz, size: 24),
+                      label: const Text(
+                        'Сменить статус',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accent,
+                        foregroundColor: Colors.black,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
         },
       ),
     );
@@ -170,5 +318,143 @@ class ProjectScreen extends StatelessWidget {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${two(dt.day)}.${two(dt.month)}.${dt.year}, '
         '${two(dt.hour)}:${two(dt.minute)}';
+  }
+}
+
+/// Bottom sheet со списком статусов.
+/// Возвращает выбранный статус через Navigator.pop(status).
+class _StatusSheet extends StatelessWidget {
+  const _StatusSheet({required this.current});
+
+  /// Текущий статус — подсветим его галочкой.
+  final ProjectStatus current;
+
+  Color _colorFor(ProjectStatus s) {
+    return switch (s) {
+      ProjectStatus.idea => AppTheme.statusIdea,
+      ProjectStatus.inProgress => AppTheme.statusInProgress,
+      ProjectStatus.frozen => AppTheme.statusFrozen,
+      ProjectStatus.done => AppTheme.statusDone,
+    };
+  }
+
+  String _labelFor(ProjectStatus s) {
+    return switch (s) {
+      ProjectStatus.idea => 'Идея',
+      ProjectStatus.inProgress => 'В работе',
+      ProjectStatus.frozen => 'Заморожен',
+      ProjectStatus.done => 'Готово',
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // «Ручка» сверху — визуальная подсказка, что это bottom sheet.
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppTheme.textSecondary.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'Сменить статус',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Список 4 статусов.
+            for (final status in ProjectStatus.values)
+              _StatusTile(
+                status: status,
+                label: _labelFor(status),
+                color: _colorFor(status),
+                isCurrent: status == current,
+                onTap: () => Navigator.of(context).pop(status),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Одна строка в bottom sheet — «Идея», «В работе», и т.д.
+class _StatusTile extends StatelessWidget {
+  const _StatusTile({
+    required this.status,
+    required this.label,
+    required this.color,
+    required this.isCurrent,
+    required this.onTap,
+  });
+
+  final ProjectStatus status;
+  final String label;
+  final Color color;
+  final bool isCurrent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        child: Row(
+          children: [
+            // Цветной кружок статуса.
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.25),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Название статуса — жирнее, если текущий.
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+            ),
+            // Галочка на текущем статусе.
+            if (isCurrent)
+              Icon(Icons.check, color: color, size: 22),
+          ],
+        ),
+      ),
+    );
   }
 }
