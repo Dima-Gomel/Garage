@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:garage/data/project_repository.dart';
 import 'package:garage/main.dart';
 import 'package:garage/models/project.dart';
+import 'package:garage/models/journal_entry.dart';
 
 /// Фейковый репозиторий для теста.
 ///
@@ -36,6 +37,29 @@ class FakeProjectRepository implements ProjectRepository {
   @override
   Future<int> deleteProject(int id) async {
     return 1;
+  }
+
+    @override
+  Stream<List<JournalEntry>> watchEntries(int projectId) {
+    return Stream.value(const []);
+  }
+
+  @override
+  Future<int> createEntry({
+    required int projectId,
+    required String text,
+  }) async {
+    return 0;
+  }
+
+  @override
+  Future<bool> updateEntry(int id, String newText) async {
+    return false;
+  }
+
+  @override
+  Future<int> deleteEntry(int id) async {
+    return 0;
   }
 }
 
