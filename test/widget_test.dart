@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+import 'package:garage/models/entry_photo.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:garage/data/journal_repository.dart';
 import 'package:garage/data/project_repository.dart';
@@ -68,6 +70,43 @@ class FakeJournalRepository implements JournalRepository {
   @override
   Future<int> deleteEntry(int id) async {
     return 0;
+  }
+
+    // ----------------------------------------------------------
+  // Фото — заглушки. Храним в памяти, чтобы тест мог проверить
+  // UI без реальной БД.
+  // ----------------------------------------------------------
+  final List<EntryPhoto> _photos = <EntryPhoto>[];
+  int _nextPhotoId = 1;
+
+  @override
+  Future<int> addPhoto({
+    required int entryId,
+    required Uint8List data,
+  }) async {
+    final id = _nextPhotoId++;
+    _photos.add(EntryPhoto(
+      id: id.toString(),
+      entryId: entryId.toString(),
+      data: data,
+      createdAt: DateTime.now(),
+    ));
+    return id;
+  }
+
+  @override
+  Stream<List<EntryPhoto>> watchPhotos(int entryId) {
+    final filtered = _photos
+        .where((p) => p.entryId == entryId.toString())
+        .toList();
+    return Stream.value(filtered);
+  }
+
+  @override
+  Future<int> deletePhoto(int id) async {
+    final before = _photos.length;
+    _photos.removeWhere((p) => p.id == id.toString());
+    return before - _photos.length;
   }
 }
 

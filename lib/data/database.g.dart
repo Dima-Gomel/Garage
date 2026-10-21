@@ -808,11 +808,311 @@ class JournalEntriesCompanion extends UpdateCompanion<JournalEntry> {
   }
 }
 
+class $EntryPhotosTable extends EntryPhotos
+    with TableInfo<$EntryPhotosTable, EntryPhoto> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EntryPhotosTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _entryIdMeta = const VerificationMeta(
+    'entryId',
+  );
+  @override
+  late final GeneratedColumn<int> entryId = GeneratedColumn<int>(
+    'entry_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _dataMeta = const VerificationMeta('data');
+  @override
+  late final GeneratedColumn<Uint8List> data = GeneratedColumn<Uint8List>(
+    'data',
+    aliasedName,
+    false,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, entryId, data, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'entry_photos';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<EntryPhoto> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('entry_id')) {
+      context.handle(
+        _entryIdMeta,
+        entryId.isAcceptableOrUnknown(data['entry_id']!, _entryIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_entryIdMeta);
+    }
+    if (data.containsKey('data')) {
+      context.handle(
+        _dataMeta,
+        this.data.isAcceptableOrUnknown(data['data']!, _dataMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dataMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  EntryPhoto map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EntryPhoto(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      entryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}entry_id'],
+      )!,
+      data: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}data'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $EntryPhotosTable createAlias(String alias) {
+    return $EntryPhotosTable(attachedDatabase, alias);
+  }
+}
+
+class EntryPhoto extends DataClass implements Insertable<EntryPhoto> {
+  final int id;
+  final int entryId;
+  final Uint8List data;
+  final DateTime createdAt;
+  const EntryPhoto({
+    required this.id,
+    required this.entryId,
+    required this.data,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['entry_id'] = Variable<int>(entryId);
+    map['data'] = Variable<Uint8List>(data);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  EntryPhotosCompanion toCompanion(bool nullToAbsent) {
+    return EntryPhotosCompanion(
+      id: Value(id),
+      entryId: Value(entryId),
+      data: Value(data),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory EntryPhoto.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EntryPhoto(
+      id: serializer.fromJson<int>(json['id']),
+      entryId: serializer.fromJson<int>(json['entryId']),
+      data: serializer.fromJson<Uint8List>(json['data']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'entryId': serializer.toJson<int>(entryId),
+      'data': serializer.toJson<Uint8List>(data),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  EntryPhoto copyWith({
+    int? id,
+    int? entryId,
+    Uint8List? data,
+    DateTime? createdAt,
+  }) => EntryPhoto(
+    id: id ?? this.id,
+    entryId: entryId ?? this.entryId,
+    data: data ?? this.data,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  EntryPhoto copyWithCompanion(EntryPhotosCompanion data) {
+    return EntryPhoto(
+      id: data.id.present ? data.id.value : this.id,
+      entryId: data.entryId.present ? data.entryId.value : this.entryId,
+      data: data.data.present ? data.data.value : this.data,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EntryPhoto(')
+          ..write('id: $id, ')
+          ..write('entryId: $entryId, ')
+          ..write('data: $data, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, entryId, $driftBlobEquality.hash(data), createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EntryPhoto &&
+          other.id == this.id &&
+          other.entryId == this.entryId &&
+          $driftBlobEquality.equals(other.data, this.data) &&
+          other.createdAt == this.createdAt);
+}
+
+class EntryPhotosCompanion extends UpdateCompanion<EntryPhoto> {
+  final Value<int> id;
+  final Value<int> entryId;
+  final Value<Uint8List> data;
+  final Value<DateTime> createdAt;
+  const EntryPhotosCompanion({
+    this.id = const Value.absent(),
+    this.entryId = const Value.absent(),
+    this.data = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  EntryPhotosCompanion.insert({
+    this.id = const Value.absent(),
+    required int entryId,
+    required Uint8List data,
+    required DateTime createdAt,
+  }) : entryId = Value(entryId),
+       data = Value(data),
+       createdAt = Value(createdAt);
+  static Insertable<EntryPhoto> custom({
+    Expression<int>? id,
+    Expression<int>? entryId,
+    Expression<Uint8List>? data,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (entryId != null) 'entry_id': entryId,
+      if (data != null) 'data': data,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  EntryPhotosCompanion copyWith({
+    Value<int>? id,
+    Value<int>? entryId,
+    Value<Uint8List>? data,
+    Value<DateTime>? createdAt,
+  }) {
+    return EntryPhotosCompanion(
+      id: id ?? this.id,
+      entryId: entryId ?? this.entryId,
+      data: data ?? this.data,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (entryId.present) {
+      map['entry_id'] = Variable<int>(entryId.value);
+    }
+    if (data.present) {
+      map['data'] = Variable<Uint8List>(data.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EntryPhotosCompanion(')
+          ..write('id: $id, ')
+          ..write('entryId: $entryId, ')
+          ..write('data: $data, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $ProjectsTable projects = $ProjectsTable(this);
   late final $JournalEntriesTable journalEntries = $JournalEntriesTable(this);
+  late final $EntryPhotosTable entryPhotos = $EntryPhotosTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -820,6 +1120,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     projects,
     journalEntries,
+    entryPhotos,
   ];
 }
 
@@ -1265,6 +1566,190 @@ typedef $$JournalEntriesTableProcessedTableManager =
       JournalEntry,
       PrefetchHooks Function()
     >;
+typedef $$EntryPhotosTableCreateCompanionBuilder =
+    EntryPhotosCompanion Function({
+      Value<int> id,
+      required int entryId,
+      required Uint8List data,
+      required DateTime createdAt,
+    });
+typedef $$EntryPhotosTableUpdateCompanionBuilder =
+    EntryPhotosCompanion Function({
+      Value<int> id,
+      Value<int> entryId,
+      Value<Uint8List> data,
+      Value<DateTime> createdAt,
+    });
+
+class $$EntryPhotosTableFilterComposer
+    extends Composer<_$AppDatabase, $EntryPhotosTable> {
+  $$EntryPhotosTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get entryId => $composableBuilder(
+    column: $table.entryId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get data => $composableBuilder(
+    column: $table.data,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$EntryPhotosTableOrderingComposer
+    extends Composer<_$AppDatabase, $EntryPhotosTable> {
+  $$EntryPhotosTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get entryId => $composableBuilder(
+    column: $table.entryId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get data => $composableBuilder(
+    column: $table.data,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$EntryPhotosTableAnnotationComposer
+    extends Composer<_$AppDatabase, $EntryPhotosTable> {
+  $$EntryPhotosTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get entryId =>
+      $composableBuilder(column: $table.entryId, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get data =>
+      $composableBuilder(column: $table.data, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$EntryPhotosTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $EntryPhotosTable,
+          EntryPhoto,
+          $$EntryPhotosTableFilterComposer,
+          $$EntryPhotosTableOrderingComposer,
+          $$EntryPhotosTableAnnotationComposer,
+          $$EntryPhotosTableCreateCompanionBuilder,
+          $$EntryPhotosTableUpdateCompanionBuilder,
+          (
+            EntryPhoto,
+            BaseReferences<_$AppDatabase, $EntryPhotosTable, EntryPhoto>,
+          ),
+          EntryPhoto,
+          PrefetchHooks Function()
+        > {
+  $$EntryPhotosTableTableManager(_$AppDatabase db, $EntryPhotosTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EntryPhotosTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EntryPhotosTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EntryPhotosTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> entryId = const Value.absent(),
+                Value<Uint8List> data = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => EntryPhotosCompanion(
+                id: id,
+                entryId: entryId,
+                data: data,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int entryId,
+                required Uint8List data,
+                required DateTime createdAt,
+              }) => EntryPhotosCompanion.insert(
+                id: id,
+                entryId: entryId,
+                data: data,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$EntryPhotosTable, EntryPhoto>(table),
+                  BaseReferences<_$AppDatabase, $EntryPhotosTable, EntryPhoto>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$EntryPhotosTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $EntryPhotosTable,
+      EntryPhoto,
+      $$EntryPhotosTableFilterComposer,
+      $$EntryPhotosTableOrderingComposer,
+      $$EntryPhotosTableAnnotationComposer,
+      $$EntryPhotosTableCreateCompanionBuilder,
+      $$EntryPhotosTableUpdateCompanionBuilder,
+      (
+        EntryPhoto,
+        BaseReferences<_$AppDatabase, $EntryPhotosTable, EntryPhoto>,
+      ),
+      EntryPhoto,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -1273,4 +1758,6 @@ class $AppDatabaseManager {
       $$ProjectsTableTableManager(_db, _db.projects);
   $$JournalEntriesTableTableManager get journalEntries =>
       $$JournalEntriesTableTableManager(_db, _db.journalEntries);
+  $$EntryPhotosTableTableManager get entryPhotos =>
+      $$EntryPhotosTableTableManager(_db, _db.entryPhotos);
 }

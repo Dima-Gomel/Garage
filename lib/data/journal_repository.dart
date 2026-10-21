@@ -5,7 +5,8 @@
 import 'package:drift/drift.dart';
 
 import '../models/journal_entry.dart';
-import 'database.dart' hide Project, JournalEntry;
+import '../models/entry_photo.dart';
+import 'database.dart' hide Project, JournalEntry, EntryPhoto;
 
 // ============================================================
 // РЕПОЗИТОРИЙ ЖУРНАЛА
@@ -77,6 +78,48 @@ class JournalRepository {
     return (_db.delete(_db.journalEntries)..where((t) => t.id.equals(id))).go();
   }
 
+    // ----------------------------------------------------------
+  // Добавить фото к записи журнала.
+  // Принимает уже готовые байты (сжатие — на стороне UI).
+  // Возвращает int id созданного фото.
+  // ----------------------------------------------------------
+  Future<int> addPhoto({
+    required int entryId,
+    required Uint8List data,
+  }) async {
+    return _db.into(_db.entryPhotos).insert(
+          EntryPhotosCompanion.insert(
+            entryId: entryId,
+            data: data,
+            createdAt: DateTime.now(),
+          ),
+        );
+  }
+
+  // ----------------------------------------------------------
+  // Все фото конкретной записи (стрим).
+  // Сортировка: старые сверху (createdAt ASC) — так фото
+  // идут в порядке добавления, как гаражная хроника.
+  // ----------------------------------------------------------
+  Stream<List<EntryPhoto>> watchPhotos(int entryId) {
+    final query = _db.select(_db.entryPhotos)
+      ..where((t) => t.entryId.equals(entryId))
+      ..orderBy([
+        (t) => OrderingTerm.asc(t.createdAt),
+      ]);
+
+    return query.watch().map(
+          (rows) => rows.map(_mapRowToPhoto).toList(),
+        );
+  }
+
+  // ----------------------------------------------------------
+  // Удалить фото по id.
+  // Возвращает число удалённых строк.
+  // ----------------------------------------------------------
+  Future<int> deletePhoto(int id) {
+    return (_db.delete(_db.entryPhotos)..where((t) => t.id.equals(id))).go();
+  }
   // ----------------------------------------------------------
   // Преобразование drift-строки в domain-модель JournalEntry.
   // ----------------------------------------------------------
@@ -87,6 +130,18 @@ class JournalRepository {
       text: row.content as String, // БД content → модель text
       createdAt: row.createdAt as DateTime,
       updatedAt: row.updatedAt as DateTime,
+    );
+  }
+
+    // ----------------------------------------------------------
+  // Преобразование drift-строки в domain-модель EntryPhoto.
+  // ----------------------------------------------------------
+  EntryPhoto _mapRowToPhoto(dynamic row) {
+    return EntryPhoto(
+      id: row.id.toString(),
+      entryId: row.entryId.toString(),
+      data: row.data as Uint8List,
+      createdAt: row.createdAt as DateTime,
     );
   }
 }
