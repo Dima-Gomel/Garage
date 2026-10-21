@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/project_repository.dart';
 import '../models/project.dart';
 import '../theme/app_theme.dart';
+import '../screens/journal_screen.dart'; 
 
 /// Экран одного проекта.
 ///
@@ -64,6 +65,18 @@ class _ProjectScreenState extends State<ProjectScreen> {
     await repository.updateProjectStatus(
       int.parse(project.id),
       selected,
+    );
+  }
+
+  /// Открыть экран журнала проекта.
+  void _openJournal() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => JournalScreen(
+          repository: repository,
+          projectId: projectId,
+        ),
+      ),
     );
   }
 
@@ -188,32 +201,66 @@ class _ProjectScreenState extends State<ProjectScreen> {
               // Контент — скроллится.
               Expanded(child: _buildContent(project)),
 
-              // Кнопка «Сменить статус» — всегда внизу, под большим пальцем.
+                            // Кнопки внизу, под большим пальцем.
               SafeArea(
                 top: false,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                  child: SizedBox(
-                    height: 56,
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _openStatusSheet(context, project),
-                      icon: const Icon(Icons.swap_horiz, size: 24),
-                      label: const Text(
-                        'Сменить статус',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // «Журнал» — обводка, вторичная по иерархии,
+                      // но крупная (частая операция).
+                      SizedBox(
+                        height: 56,
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _openJournal,
+                          icon: const Icon(Icons.menu_book_outlined, size: 24),
+                          label: const Text(
+                            'Журнал',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.accent,
+                            side: const BorderSide(
+                              color: AppTheme.accent,
+                              width: 2,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
                         ),
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.accent,
-                        foregroundColor: Colors.black,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                      const SizedBox(height: 8),
+                      // «Сменить статус» — заливка, главная кнопка.
+                      SizedBox(
+                        height: 56,
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _openStatusSheet(context, project),
+                          icon: const Icon(Icons.swap_horiz, size: 24),
+                          label: const Text(
+                            'Сменить статус',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.accent,
+                            foregroundColor: Colors.black,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ),
