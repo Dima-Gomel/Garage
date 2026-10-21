@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'data/database.dart';
 import 'data/project_repository.dart';
+import 'data/journal_repository.dart';
 import 'screens/projects_screen.dart';
 import 'theme/app_theme.dart';
 
@@ -11,22 +12,34 @@ import 'theme/app_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Создаём БД и репозиторий один раз на всё приложение.
-  // Пока без Provider/riverpod — просто держим ссылку в GarageApp.
+  // Создаём БД один раз на всё приложение.
   final database = AppDatabase();
-  final repository = ProjectRepository(database);
 
-  runApp(GarageApp(repository: repository));
+  // Два репозитория поверх одной БД:
+  //  - ProjectRepository — проекты
+  //  - JournalRepository — записи журнала
+  final projectRepository = ProjectRepository(database);
+  final journalRepository = JournalRepository(database);
+
+  runApp(GarageApp(
+    projectRepository: projectRepository,
+    journalRepository: journalRepository,
+  ));
 }
 
 /// Корневой виджет приложения.
 class GarageApp extends StatelessWidget {
-  const GarageApp({super.key, required this.repository});
+  const GarageApp({
+    super.key,
+    required this.projectRepository,
+    required this.journalRepository,
+  });
 
-  /// Репозиторий проектов. Прокидываем его вниз по дереву
-  /// руками (вариант А). Когда репозиториев станет много —
-  /// перейдём на Provider/riverpod.
-  final ProjectRepository repository;
+  /// Репозиторий проектов.
+  final ProjectRepository projectRepository;
+
+  /// Репозиторий журнала.
+  final JournalRepository journalRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +47,10 @@ class GarageApp extends StatelessWidget {
       title: 'Garage',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      home: ProjectsScreen(repository: repository),
+      home: ProjectsScreen(
+        projectRepository: projectRepository,
+        journalRepository: journalRepository,
+      ),
     );
   }
 }

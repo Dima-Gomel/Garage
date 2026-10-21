@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/project_repository.dart';
+import '../data/journal_repository.dart';
 import '../models/journal_entry.dart';
 import '../theme/app_theme.dart';
 
@@ -10,11 +10,11 @@ import '../theme/app_theme.dart';
 class JournalScreen extends StatefulWidget {
   const JournalScreen({
     super.key,
-    required this.repository,
+    required this.journalRepository,
     required this.projectId,
   });
 
-  final ProjectRepository repository;
+  final JournalRepository journalRepository;
 
   /// id проекта в БД — int (в модели Project.id — String).
   final int projectId;
@@ -25,7 +25,7 @@ class JournalScreen extends StatefulWidget {
 
 class _JournalScreenState extends State<JournalScreen> {
   // Мостики к полям родителя.
-  ProjectRepository get repository => widget.repository;
+  JournalRepository get journalRepository => widget.journalRepository;
   int get projectId => widget.projectId;
 
   /// Открыть bottom sheet записи.
@@ -48,14 +48,14 @@ class _JournalScreenState extends State<JournalScreen> {
         final text = result.text?.trim() ?? '';
         if (text.isEmpty) return;
         if (entry == null) {
-          await repository.createEntry(projectId: projectId, text: text);
+          await journalRepository.createEntry(projectId: projectId, text: text);
         } else {
-          await repository.updateEntry(int.parse(entry.id), text);
+          await journalRepository.updateEntry(int.parse(entry.id), text);
         }
       }
       case _EntrySheetAction.delete: {
         if (entry != null) {
-          await repository.deleteEntry(int.parse(entry.id));
+          await journalRepository.deleteEntry(int.parse(entry.id));
         }
       }
     }
@@ -67,7 +67,7 @@ class _JournalScreenState extends State<JournalScreen> {
         title: const Text('Журнал'),
       ),
       body: StreamBuilder<List<JournalEntry>>(
-        stream: repository.watchEntries(projectId),
+        stream: journalRepository.watchEntries(projectId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -146,7 +146,7 @@ class _JournalScreenState extends State<JournalScreen> {
     );
   }
 
-    Widget _buildEntriesList(List<JournalEntry> entries) {
+  Widget _buildEntriesList(List<JournalEntry> entries) {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96), // снизу отступ под FAB
       itemCount: entries.length,

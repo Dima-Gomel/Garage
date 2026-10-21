@@ -1,10 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:garage/data/journal_repository.dart';
 import 'package:garage/data/project_repository.dart';
 import 'package:garage/main.dart';
 import 'package:garage/models/project.dart';
 import 'package:garage/models/journal_entry.dart';
 
-/// Фейковый репозиторий для теста.
+/// Фейковый репозиторий ПРОЕКТОВ для теста.
 ///
 /// Реальная AppDatabase в тестах не поднимается —
 /// ей нужен нативный sqlite3, которого в test-раннере нет.
@@ -38,8 +39,15 @@ class FakeProjectRepository implements ProjectRepository {
   Future<int> deleteProject(int id) async {
     return 1;
   }
+}
 
-    @override
+/// Фейковый репозиторий ЖУРНАЛА для теста.
+///
+/// Нужен, потому что GarageApp требует оба репозитория.
+/// Пока журнальные экраны в тестах не открываются —
+/// методы возвращают пустые значения.
+class FakeJournalRepository implements JournalRepository {
+  @override
   Stream<List<JournalEntry>> watchEntries(int projectId) {
     return Stream.value(const []);
   }
@@ -67,7 +75,10 @@ void main() {
   testWidgets('Garage запускается и показывает пустой экран проектов',
       (WidgetTester tester) async {
     await tester.pumpWidget(
-      GarageApp(repository: FakeProjectRepository()),
+      GarageApp(
+        projectRepository: FakeProjectRepository(),
+        journalRepository: FakeJournalRepository(),
+      ),
     );
 
     // StreamBuilder отдаёт данные асинхронно.

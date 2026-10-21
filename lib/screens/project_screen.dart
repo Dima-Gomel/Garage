@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../data/journal_repository.dart';
 import '../data/project_repository.dart';
 import '../models/project.dart';
 import '../theme/app_theme.dart';
-import '../screens/journal_screen.dart'; 
+import '../screens/journal_screen.dart';
 
 /// Экран одного проекта.
 ///
@@ -13,11 +14,13 @@ import '../screens/journal_screen.dart';
 class ProjectScreen extends StatefulWidget {
   const ProjectScreen({
     super.key,
-    required this.repository,
+    required this.projectRepository,
+    required this.journalRepository,
     required this.projectId,
   });
 
-  final ProjectRepository repository;
+  final ProjectRepository projectRepository;
+  final JournalRepository journalRepository;
 
   /// id в БД — int (в модели Project.id — String,
   /// конвертация происходит на вызывающей стороне).
@@ -32,7 +35,8 @@ class _ProjectScreenState extends State<ProjectScreen> {
   bool _isDeleting = false;
 
   // Мостики к полям родителя, чтобы не переписывать весь код ниже.
-  ProjectRepository get repository => widget.repository;
+  ProjectRepository get projectRepository => widget.projectRepository;
+  JournalRepository get journalRepository => widget.journalRepository;
   int get projectId => widget.projectId;
 
   /// Цвет для бейджа статуса (та же логика, что в ProjectCard).
@@ -62,7 +66,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
 
     // Вызываем репозиторий. Стрим watchProject сам пришлёт обновление,
     // setState не нужен.
-    await repository.updateProjectStatus(
+    await projectRepository.updateProjectStatus(
       int.parse(project.id),
       selected,
     );
@@ -73,7 +77,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => JournalScreen(
-          repository: repository,
+          journalRepository: journalRepository,
           projectId: projectId,
         ),
       ),
@@ -123,7 +127,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
     setState(() => _isDeleting = true);
 
     try {
-      await repository.deleteProject(projectId);
+      await projectRepository.deleteProject(projectId);
 
       // 3. ВАЖНО: после await проверяем, что экран ещё жив.
       // Пользователь мог нажать «назад», пока мы ждали БД.
@@ -165,7 +169,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
         ],
       ),
       body: StreamBuilder<Project?>(
-        stream: repository.watchProject(projectId),
+        stream: projectRepository.watchProject(projectId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -201,7 +205,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
               // Контент — скроллится.
               Expanded(child: _buildContent(project)),
 
-                            // Кнопки внизу, под большим пальцем.
+              // Кнопки внизу, под большим пальцем.
               SafeArea(
                 top: false,
                 child: Padding(

@@ -2,10 +2,8 @@
 // Экраны не знают про drift — они работают только с этим классом.
 
 import 'package:drift/drift.dart';
-
 import '../models/project.dart';
-import '../models/journal_entry.dart';
-import 'database.dart' hide Project, JournalEntry;
+import 'database.dart' hide Project;
 
 // ============================================================
 // МАППИНГ ProjectStatus ↔ String
@@ -117,87 +115,6 @@ class ProjectRepository {
       description: row.description as String,
       status: _statusFromString(row.status as String),
       coverImage: row.coverImage as String?,
-      createdAt: row.createdAt as DateTime,
-      updatedAt: row.updatedAt as DateTime,
-    );
-  }
-    // ============================================================
-  // ЖУРНАЛ
-  // ============================================================
-
-  // ----------------------------------------------------------
-  // Все записи журнала проекта (стрим).
-  // Сортировка: свежие сверху (createdAt DESC).
-  //
-  // Принимает projectId как int (Projects.id в БД).
-  // Возвращает Stream<List<JournalEntry>>.
-  // ----------------------------------------------------------
-  Stream<List<JournalEntry>> watchEntries(int projectId) {
-    final query = _db.select(_db.journalEntries)
-      ..where((t) => t.projectId.equals(projectId))
-      ..orderBy([
-        (t) => OrderingTerm.desc(t.createdAt),
-      ]);
-
-    return query.watch().map(
-          (rows) => rows.map(_mapRowToEntry).toList(),
-        );
-  }
-
-  // ----------------------------------------------------------
-  // Создать новую запись журнала.
-  // Возвращает int id созданной записи.
-  // ----------------------------------------------------------
-  Future<int> createEntry({
-    required int projectId,
-    required String text,
-  }) async {
-    final now = DateTime.now();
-
-    return _db.into(_db.journalEntries).insert(
-          JournalEntriesCompanion.insert(
-            projectId: projectId,
-            content: text, // колонка в БД называется content,
-                           // в модели JournalEntry — text
-            createdAt: now,
-            updatedAt: now,
-          ),
-        );
-  }
-
-  // ----------------------------------------------------------
-  // Обновить текст записи.
-  // true — если обновилось, false — если запись не найдена.
-  // ----------------------------------------------------------
-  Future<bool> updateEntry(int id, String newText) async {
-    final rowsUpdated = await (_db.update(_db.journalEntries)
-          ..where((t) => t.id.equals(id)))
-        .write(
-      JournalEntriesCompanion(
-        content: Value(newText),
-        updatedAt: Value(DateTime.now()),
-      ),
-    );
-
-    return rowsUpdated > 0;
-  }
-
-  // ----------------------------------------------------------
-  // Удалить запись журнала по id.
-  // Возвращает число удалённых строк.
-  // ----------------------------------------------------------
-  Future<int> deleteEntry(int id) {
-    return (_db.delete(_db.journalEntries)..where((t) => t.id.equals(id))).go();
-  }
-
-  // ----------------------------------------------------------
-  // Преобразование drift-строки в domain-модель JournalEntry.
-  // ----------------------------------------------------------
-  JournalEntry _mapRowToEntry(dynamic row) {
-    return JournalEntry(
-      id: row.id.toString(),
-      projectId: row.projectId.toString(),
-      text: row.content as String, // БД content → модель text
       createdAt: row.createdAt as DateTime,
       updatedAt: row.updatedAt as DateTime,
     );

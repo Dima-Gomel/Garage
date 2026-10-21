@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/journal_repository.dart';
 import '../data/project_repository.dart';
 import '../models/project.dart';
 import '../theme/app_theme.dart';
@@ -8,9 +9,14 @@ import 'project_screen.dart';
 
 /// Главный экран — список проектов.
 class ProjectsScreen extends StatefulWidget {
-  const ProjectsScreen({super.key, required this.repository});
+  const ProjectsScreen({
+    super.key,
+    required this.projectRepository,
+    required this.journalRepository,
+  });
 
-  final ProjectRepository repository;
+  final ProjectRepository projectRepository;
+  final JournalRepository journalRepository;
 
   @override
   State<ProjectsScreen> createState() => _ProjectsScreenState();
@@ -30,7 +36,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
     if (result == null || result.trim().isEmpty) return;
 
-    await widget.repository.createProject(title: result.trim());
+    await widget.projectRepository.createProject(title: result.trim());
   }
 
   /// Открыть экран проекта.
@@ -38,7 +44,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ProjectScreen(
-          repository: widget.repository,
+          projectRepository: widget.projectRepository,
+          journalRepository: widget.journalRepository,
           projectId: int.parse(project.id),
         ),
       ),
@@ -52,7 +59,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         title: const Text('🔧 Garage'),
       ),
       body: StreamBuilder<List<Project>>(
-        stream: widget.repository.watchAllProjects(),
+        stream: widget.projectRepository.watchAllProjects(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
