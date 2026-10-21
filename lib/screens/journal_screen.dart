@@ -7,7 +7,6 @@ import '../theme/app_theme.dart';
 /// Экран журнала одного проекта.
 ///
 /// Показывает список записей (свежие сверху) через watchEntries(projectId).
-/// FAB — пока заглушка, создание записи будет в Ж3.
 class JournalScreen extends StatefulWidget {
   const JournalScreen({
     super.key,
@@ -29,25 +28,38 @@ class _JournalScreenState extends State<JournalScreen> {
   ProjectRepository get repository => widget.repository;
   int get projectId => widget.projectId;
 
-  /// Открыть bottom sheet создания записи.
-  /// Если вернулся непустой текст — создаём запись в БД.
-  Future<void> _onAddEntry() async {
-    final text = await showModalBottomSheet<String>(
+  /// Открыть bottom sheet записи.
+  /// [entry] == null — создание, иначе — редактирование.
+  Future<void> _openEntrySheet({JournalEntry? entry}) async {
+    final result = await showModalBottomSheet<_EntrySheetResult>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppTheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => const _NewEntrySheet(),
+      builder: (context) => _EntrySheet(entry: entry),
     );
 
-    if (text == null || text.trim().isEmpty) return;
+    if (result == null) return;
 
-    await repository.createEntry(projectId: projectId, text: text.trim());
-    // Список обновится сам через watchEntries — setState не нужен.
+    switch (result.action) {
+      case _EntrySheetAction.save: {
+        final text = result.text?.trim() ?? '';
+        if (text.isEmpty) return;
+        if (entry == null) {
+          await repository.createEntry(projectId: projectId, text: text);
+        } else {
+          await repository.updateEntry(int.parse(entry.id), text);
+        }
+      }
+      case _EntrySheetAction.delete: {
+        if (entry != null) {
+          await repository.deleteEntry(int.parse(entry.id));
+        }
+      }
+    }
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -83,7 +95,7 @@ class _JournalScreenState extends State<JournalScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _onAddEntry,
+        onPressed: () => _openEntrySheet(),
         backgroundColor: AppTheme.accent,
         foregroundColor: Colors.black,
         icon: const Icon(Icons.add, size: 28),
@@ -134,13 +146,17 @@ class _JournalScreenState extends State<JournalScreen> {
     );
   }
 
-  Widget _buildEntriesList(List<JournalEntry> entries) {
+    Widget _buildEntriesList(List<JournalEntry> entries) {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96), // снизу отступ под FAB
       itemCount: entries.length,
       itemBuilder: (context, index) {
         final entry = entries[index];
-        return _EntryCard(entry: entry);
+        return InkWell(
+          onTap: () => _openEntrySheet(entry: entry),
+          borderRadius: BorderRadius.circular(12),
+          child: _EntryCard(entry: entry),
+        );
       },
     );
   }
@@ -193,17 +209,39 @@ class _EntryCard extends StatelessWidget {
   }
 }
 
-/// Bottom sheet создания записи журнала.
-/// Возвращает введённый текст через Navigator.pop(text) или null.
-class _NewEntrySheet extends StatefulWidget {
-  const _NewEntrySheet();
+/// Что сделал пользователь в bottom sheet записи.
+enum _EntrySheetAction { save, delete }
 
-  @override
-  State<_NewEntrySheet> createState() => _NewEntrySheetState();
+/// Результат работы bottom sheet записи.
+class _EntrySheetResult {
+  const _EntrySheetResult(this.action, [this.text]);
+  final _EntrySheetAction action;
+  final String? text;
 }
 
-class _NewEntrySheetState extends State<_NewEntrySheet> {
-  final _controller = TextEditingController();
+/// Bottom sheet создания/редактирования записи журнала.
+/// Возвращает _EntrySheetResult через Navigator.pop.
+class _EntrySheet extends StatefulWidget {
+  const _EntrySheet({this.entry});
+
+  /// null — создание, не null — редактирование.
+  final JournalEntry? entry;
+
+  @override
+  State<_EntrySheet> createState() => _EntrySheetState();
+}
+
+class _EntrySheetState extends State<_EntrySheet> {
+  late final TextEditingController _controller;
+
+  bool get _isEditing => widget.entry != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // При правке сразу заполняем поле текущим текстом.
+    _controller = TextEditingController(text: widget.entry?.text ?? '');
+  }
 
   @override
   void dispose() {
@@ -212,12 +250,61 @@ class _NewEntrySheetState extends State<_NewEntrySheet> {
   }
 
   void _submit() {
-    Navigator.of(context).pop(_controller.text);
+    Navigator.of(context).pop(
+      _EntrySheetResult(_EntrySheetAction.save, _controller.text),
+    );
+  }
+
+  /// Диалог подтверждения удаления. Возвращает true, если подтвердили.
+  Future<bool> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: const Text(
+          'Удалить запись?',
+          style: TextStyle(color: AppTheme.textPrimary),
+        ),
+        content: const Text(
+          'Это действие нельзя отменить.',
+          style: TextStyle(color: AppTheme.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text(
+              'Отмена',
+              style: TextStyle(color: AppTheme.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text(
+              'Удалить',
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
+  Future<void> _onDeletePressed() async {
+    final ok = await _confirmDelete();
+    if (!ok) return;
+    // ВАЖНО: после await проверяем mounted — sheet мог закрыться.
+    if (!mounted) return;
+    Navigator.of(context).pop(
+      const _EntrySheetResult(_EntrySheetAction.delete),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Отступ снизу под клавиатуру — иначе TextField уедет под неё.
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
@@ -240,9 +327,9 @@ class _NewEntrySheetState extends State<_NewEntrySheet> {
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
-              'Новая запись',
-              style: TextStyle(
+            Text(
+              _isEditing ? 'Редактировать запись' : 'Новая запись',
+              style: const TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
                 color: AppTheme.textPrimary,
@@ -252,7 +339,6 @@ class _NewEntrySheetState extends State<_NewEntrySheet> {
             TextField(
               controller: _controller,
               autofocus: true,
-              // Многострочное поле: растёт по мере ввода, но не бесконечно.
               minLines: 4,
               maxLines: 10,
               keyboardType: TextInputType.multiline,
@@ -295,6 +381,31 @@ class _NewEntrySheetState extends State<_NewEntrySheet> {
                 ),
               ),
             ),
+            // Кнопка удаления — только в режиме правки.
+            if (_isEditing) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 56,
+                child: OutlinedButton.icon(
+                  onPressed: _onDeletePressed,
+                  icon: const Icon(Icons.delete_outline, size: 24),
+                  label: const Text(
+                    'Удалить запись',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: BorderSide(color: Colors.red.withValues(alpha: 0.6)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
