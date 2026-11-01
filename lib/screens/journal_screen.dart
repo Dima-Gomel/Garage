@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../data/journal_repository.dart';
 import '../models/entry_photo.dart';
@@ -328,6 +329,7 @@ class _EntrySheetState extends State<_EntrySheet> {
 
   @override
   void dispose() {
+    _speech.stop(); // безопасно, даже если не начинали слушать
     _controller.dispose();
     super.dispose();
   }
@@ -356,6 +358,100 @@ class _EntrySheetState extends State<_EntrySheet> {
     } finally {
       if (mounted) setState(() => _isPicking = false);
     }
+  }
+
+  Future<void> _toggleListening() async {
+    if (_isInitializing) return;
+
+    if (_isListening) {
+      await _stopListening();
+      return;
+    }
+
+    // Ленивая инициализация — только при первом нажатии.
+    if (_speechAvailable == null) {
+      setState(() => _isInitializing = true);
+      try {
+        final available = await _speech.initialize(
+          onError: (error) {
+            if (!mounted) return;
+            _showSpeechSnackBar('Ошибка распознавания: ${error.errorMsg}');
+          },
+          onStatus: (status) {
+            // status == 'done' / 'notListening' — распознавание остановилось
+            // само (тишина, таймаут). Синхронизируем флаг.
+            if (!mounted) return;
+            if (status == 'done' || status == 'notListening') {
+              if (_isListening) setState(() => _isListening = false);
+            }
+          },
+        );
+        _speechAvailable = available;
+        if (!available) {
+          _showSpeechSnackBar(
+            'Распознавание речи недоступно на этом устройстве',
+          );
+        }
+      } catch (e) {
+        _speechAvailable = false;
+        _showSpeechSnackBar('Не удалось запустить распознавание: $e');
+      } finally {
+        if (mounted) setState(() => _isInitializing = false);
+      }
+    }
+
+    if (_speechAvailable != true) return;
+
+    await _startListening();
+  }
+
+  Future<void> _startListening() async {
+    if (!mounted) return;
+    setState(() => _isListening = true);
+    try {
+      await _speech.listen(
+        onResult: (result) {
+          if (!mounted) return;
+          if (result.finalResult) {
+            _appendRecognized(result.recognizedWords);
+          }
+        },
+        listenOptions: stt.SpeechListenOptions(
+          localeId: 'ru_RU',
+          listenFor: const Duration(seconds: 30),
+          pauseFor: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isListening = false);
+      _showSpeechSnackBar('Ошибка запуска микрофона: $e');
+    }
+  }
+
+  Future<void> _stopListening() async {
+    await _speech.stop();
+    if (mounted) setState(() => _isListening = false);
+  }
+
+  void _appendRecognized(String words) {
+    final trimmed = words.trim();
+    if (trimmed.isEmpty) return;
+
+    final current = _controller.text;
+    // Дописываем, не заменяем. Если текст уже есть — ставим пробел.
+    final needsSpace = current.isNotEmpty && !current.endsWith(' ');
+    _controller.text = current + (needsSpace ? ' ' : '') + trimmed;
+    // Курсор — в конец.
+    _controller.selection = TextSelection.collapsed(
+      offset: _controller.text.length,
+    );
+  }
+
+  void _showSpeechSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _submit() {
@@ -413,6 +509,11 @@ class _EntrySheetState extends State<_EntrySheet> {
       context,
     ).pop(const _EntrySheetResult(action: _EntrySheetAction.delete, text: ''));
   }
+
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _isListening = false;
+  bool _isInitializing = false;
+  bool? _speechAvailable; // null — ещё не инициализировали
 
   @override
   Widget build(BuildContext context) {
@@ -588,25 +689,57 @@ class _EntrySheetState extends State<_EntrySheet> {
 
               const SizedBox(height: 12),
 
-              OutlinedButton.icon(
-                onPressed: _isPicking ? null : _pickPhoto,
-                icon: _isPicking
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.add_a_photo_outlined),
-                label: Text(_isPicking ? 'Выбор…' : 'Добавить фото'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.accent,
-                  side: BorderSide(
-                    color: AppTheme.accent.withValues(alpha: 0.6),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _isInitializing ? null : _toggleListening,
+                      icon: _isInitializing
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(_isListening ? Icons.stop : Icons.mic),
+                      label: Text(_isListening ? 'Стоп' : 'Голос'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _isListening
+                            ? Colors.red
+                            : AppTheme.accent,
+                        side: BorderSide(
+                          color: (_isListening ? Colors.red : AppTheme.accent)
+                              .withValues(alpha: 0.6),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _isPicking ? null : _pickPhoto,
+                      icon: _isPicking
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.add_a_photo_outlined),
+                      label: Text(_isPicking ? 'Выбор…' : 'Фото'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.accent,
+                        side: BorderSide(
+                          color: AppTheme.accent.withValues(alpha: 0.6),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
 
               const SizedBox(height: 16),
