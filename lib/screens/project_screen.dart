@@ -5,6 +5,8 @@ import '../data/project_repository.dart';
 import '../models/project.dart';
 import '../theme/app_theme.dart';
 import '../screens/journal_screen.dart';
+import '../data/material_repository.dart';
+import '../screens/materials_screen.dart';
 
 /// Экран одного проекта.
 ///
@@ -16,11 +18,13 @@ class ProjectScreen extends StatefulWidget {
     super.key,
     required this.projectRepository,
     required this.journalRepository,
+    required this.materialRepository,
     required this.projectId,
   });
 
   final ProjectRepository projectRepository;
   final JournalRepository journalRepository;
+  final MaterialRepository materialRepository;
 
   /// id в БД — int (в модели Project.id — String,
   /// конвертация происходит на вызывающей стороне).
@@ -38,6 +42,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
   ProjectRepository get projectRepository => widget.projectRepository;
   JournalRepository get journalRepository => widget.journalRepository;
   int get projectId => widget.projectId;
+  MaterialRepository get materialRepository => widget.materialRepository;
 
   /// Цвет для бейджа статуса (та же логика, что в ProjectCard).
   Color _statusColor(ProjectStatus status) {
@@ -84,6 +89,17 @@ class _ProjectScreenState extends State<ProjectScreen> {
     );
   }
 
+  void _openMaterials() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MaterialsScreen(
+          materialRepository: materialRepository,
+          projectId: projectId,
+        ),
+      ),
+    );
+  }
+
   /// Диалог подтверждения удаления + само удаление.
   Future<void> _confirmDelete() async {
     // 1. Спрашиваем подтверждение.
@@ -111,10 +127,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text(
               'Удалить',
-              style: TextStyle(
-                color: Colors.red,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -213,31 +226,57 @@ class _ProjectScreenState extends State<ProjectScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // «Журнал» — обводка, вторичная по иерархии,
-                      // но крупная (частая операция).
+                      // «Журнал» + «Материалы» — в ряд, по половине ширины.
                       SizedBox(
                         height: 56,
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: _openJournal,
-                          icon: const Icon(Icons.menu_book_outlined, size: 24),
-                          label: const Text(
-                            'Журнал',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: _openJournal,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppTheme.accent,
+                                  side: const BorderSide(
+                                    color: AppTheme.accent,
+                                    width: 2,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Журнал',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppTheme.accent,
-                            side: const BorderSide(
-                              color: AppTheme.accent,
-                              width: 2,
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: _openMaterials,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppTheme.accent,
+                                  side: const BorderSide(
+                                    color: AppTheme.accent,
+                                    width: 2,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Материалы',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
                             ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -245,21 +284,20 @@ class _ProjectScreenState extends State<ProjectScreen> {
                       SizedBox(
                         height: 56,
                         width: double.infinity,
-                        child: ElevatedButton.icon(
+                        child: ElevatedButton(
                           onPressed: () => _openStatusSheet(context, project),
-                          icon: const Icon(Icons.swap_horiz, size: 24),
-                          label: const Text(
-                            'Сменить статус',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.accent,
                             foregroundColor: Colors.black,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Сменить статус',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -337,10 +375,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
           const SizedBox(height: 4),
           Text(
             _formatDate(project.createdAt),
-            style: const TextStyle(
-              fontSize: 16,
-              color: AppTheme.textPrimary,
-            ),
+            style: const TextStyle(fontSize: 16, color: AppTheme.textPrimary),
           ),
           const SizedBox(height: 12),
           const Text(
@@ -354,10 +389,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
           const SizedBox(height: 4),
           Text(
             _formatDate(project.updatedAt),
-            style: const TextStyle(
-              fontSize: 16,
-              color: AppTheme.textPrimary,
-            ),
+            style: const TextStyle(fontSize: 16, color: AppTheme.textPrimary),
           ),
         ],
       ),
@@ -501,8 +533,7 @@ class _StatusTile extends StatelessWidget {
               ),
             ),
             // Галочка на текущем статусе.
-            if (isCurrent)
-              Icon(Icons.check, color: color, size: 22),
+            if (isCurrent) Icon(Icons.check, color: color, size: 22),
           ],
         ),
       ),

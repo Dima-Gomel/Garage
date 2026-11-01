@@ -6,6 +6,7 @@ import '../models/project.dart';
 import '../theme/app_theme.dart';
 import '../widgets/project_card.dart';
 import 'project_screen.dart';
+import '../data/material_repository.dart';
 
 /// Главный экран — список проектов.
 class ProjectsScreen extends StatefulWidget {
@@ -13,10 +14,12 @@ class ProjectsScreen extends StatefulWidget {
     super.key,
     required this.projectRepository,
     required this.journalRepository,
+    required this.materialRepository,
   });
 
   final ProjectRepository projectRepository;
   final JournalRepository journalRepository;
+  final MaterialRepository materialRepository;
 
   @override
   State<ProjectsScreen> createState() => _ProjectsScreenState();
@@ -46,6 +49,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         builder: (_) => ProjectScreen(
           projectRepository: widget.projectRepository,
           journalRepository: widget.journalRepository,
+          materialRepository: widget.materialRepository,
           projectId: int.parse(project.id),
         ),
       ),
@@ -55,9 +59,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('🔧 Garage'),
-      ),
+      appBar: AppBar(title: const Text('🔧 Garage')),
       body: StreamBuilder<List<Project>>(
         stream: widget.projectRepository.watchAllProjects(),
         builder: (context, snapshot) {
@@ -93,10 +95,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         icon: const Icon(Icons.add, size: 28),
         label: const Text(
           'Новый проект',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -127,10 +126,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             const Text(
               'Создай первый проект — и он появится здесь',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 15,
-                color: AppTheme.textSecondary,
-              ),
+              style: TextStyle(fontSize: 15, color: AppTheme.textSecondary),
             ),
           ],
         ),
@@ -209,10 +205,7 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
             TextField(
               controller: _controller,
               autofocus: true,
-              style: const TextStyle(
-                fontSize: 18,
-                color: AppTheme.textPrimary,
-              ),
+              style: const TextStyle(fontSize: 18, color: AppTheme.textPrimary),
               decoration: InputDecoration(
                 hintText: 'Например: Мини-трактор',
                 hintStyle: TextStyle(
@@ -241,10 +234,7 @@ class _NewProjectSheetState extends State<_NewProjectSheet> {
                 ),
                 child: const Text(
                   'Создать',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                 ),
               ),
             ),

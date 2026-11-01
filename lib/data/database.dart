@@ -45,14 +45,33 @@ class EntryPhotos extends Table {
 }
 
 // ============================================================
+// ТАБЛИЦА MATERIAL_ITEMS
+// ============================================================
+// Материалы проекта. status: 'need' | 'ordered' | 'have'.
+// price — цена за единицу, REAL (для MVP; точные деньги — техдолг).
+class MaterialItems extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get projectId =>
+      integer().references(Projects, #id, onDelete: KeyAction.cascade)();
+  TextColumn get name => text()();
+  IntColumn get quantity => integer().withDefault(const Constant(1))();
+  TextColumn get unit => text().withDefault(const Constant('шт'))();
+  RealColumn get price => real().nullable()();
+  TextColumn get status => text().withDefault(const Constant('need'))();
+  TextColumn get notes => text().withDefault(const Constant(''))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+}
+
+// ============================================================
 // КЛАСС AppDatabase
 // ============================================================
-@DriftDatabase(tables: [Projects, JournalEntries, EntryPhotos])
+@DriftDatabase(tables: [Projects, JournalEntries, EntryPhotos, MaterialItems])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -88,6 +107,12 @@ class AppDatabase extends _$AppDatabase {
 
         final wrong = await customSelect('PRAGMA foreign_key_check').get();
         assert(wrong.isEmpty, 'FK violations: ${wrong.map((e) => e.data)}');
+      }
+
+      // v4 → v5: новая таблица материалов.
+      // createTable сразу с FK — alterTable не нужен, данных в таблице нет.
+      if (from < 5) {
+        await m.createTable(materialItems);
       }
     },
     beforeOpen: (details) async {

@@ -3,43 +3,40 @@ import 'package:flutter/material.dart';
 import 'data/database.dart';
 import 'data/project_repository.dart';
 import 'data/journal_repository.dart';
+import 'data/material_repository.dart';
 import 'screens/projects_screen.dart';
 import 'theme/app_theme.dart';
 
-/// main теперь async, потому что инициализация БД — асинхронная.
-/// ensureInitialized() нужен до любого обращения к платформе
-/// (в нашем случае — до создания AppDatabase).
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Создаём БД один раз на всё приложение.
   final database = AppDatabase();
 
-  // Два репозитория поверх одной БД:
-  //  - ProjectRepository — проекты
-  //  - JournalRepository — записи журнала
+  // Три репозитория поверх одной БД.
   final projectRepository = ProjectRepository(database);
   final journalRepository = JournalRepository(database);
+  final materialRepository = MaterialRepository(database);
 
-  runApp(GarageApp(
-    projectRepository: projectRepository,
-    journalRepository: journalRepository,
-  ));
+  runApp(
+    GarageApp(
+      projectRepository: projectRepository,
+      journalRepository: journalRepository,
+      materialRepository: materialRepository,
+    ),
+  );
 }
 
-/// Корневой виджет приложения.
 class GarageApp extends StatelessWidget {
   const GarageApp({
     super.key,
     required this.projectRepository,
     required this.journalRepository,
+    required this.materialRepository,
   });
 
-  /// Репозиторий проектов.
   final ProjectRepository projectRepository;
-
-  /// Репозиторий журнала.
   final JournalRepository journalRepository;
+  final MaterialRepository materialRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +47,7 @@ class GarageApp extends StatelessWidget {
       home: ProjectsScreen(
         projectRepository: projectRepository,
         journalRepository: journalRepository,
+        materialRepository: materialRepository,
       ),
     );
   }

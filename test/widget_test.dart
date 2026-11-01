@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+
 import 'package:garage/models/entry_photo.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:garage/data/journal_repository.dart';
@@ -6,6 +7,8 @@ import 'package:garage/data/project_repository.dart';
 import 'package:garage/main.dart';
 import 'package:garage/models/project.dart';
 import 'package:garage/models/journal_entry.dart';
+import 'package:garage/data/material_repository.dart';
+import 'package:garage/models/material_item.dart';
 
 /// Фейковый репозиторий ПРОЕКТОВ для теста.
 ///
@@ -14,12 +17,10 @@ import 'package:garage/models/journal_entry.dart';
 /// Поэтому подсовываем этот класс: ProjectsScreen его не отличит.
 class FakeProjectRepository implements ProjectRepository {
   @override
-  Stream<List<Project>> watchAllProjects() =>
-      Stream.value(const <Project>[]);
+  Stream<List<Project>> watchAllProjects() => Stream.value(const <Project>[]);
 
   @override
-  Stream<Project?> watchProject(int id) =>
-      Stream.value(null);
+  Stream<Project?> watchProject(int id) => Stream.value(null);
 
   @override
   Future<int> createProject({
@@ -72,7 +73,7 @@ class FakeJournalRepository implements JournalRepository {
     return 0;
   }
 
-    // ----------------------------------------------------------
+  // ----------------------------------------------------------
   // Фото — заглушки. Храним в памяти, чтобы тест мог проверить
   // UI без реальной БД.
   // ----------------------------------------------------------
@@ -80,17 +81,16 @@ class FakeJournalRepository implements JournalRepository {
   int _nextPhotoId = 1;
 
   @override
-  Future<int> addPhoto({
-    required int entryId,
-    required Uint8List data,
-  }) async {
+  Future<int> addPhoto({required int entryId, required Uint8List data}) async {
     final id = _nextPhotoId++;
-    _photos.add(EntryPhoto(
-      id: id.toString(),
-      entryId: entryId.toString(),
-      data: data,
-      createdAt: DateTime.now(),
-    ));
+    _photos.add(
+      EntryPhoto(
+        id: id.toString(),
+        entryId: entryId.toString(),
+        data: data,
+        createdAt: DateTime.now(),
+      ),
+    );
     return id;
   }
 
@@ -110,13 +110,113 @@ class FakeJournalRepository implements JournalRepository {
   }
 }
 
+// ============================================================
+// FakeMaterialRepository — зеркалит MaterialRepository
+// ============================================================
+// По правилу: при добавлении метода в репозиторий —
+// СРАЗУ добавь его в фейк. Иначе analyze ругнётся на
+// несоответствие implements.
+class FakeMaterialRepository implements MaterialRepository {
+  /// Внутреннее хранилище: projectId → список материалов.
+  final Map<int, List<MaterialItem>> _store = {};
+  int _nextId = 1;
+
+  @override
+  Stream<List<MaterialItem>> watchMaterials(int projectId) {
+    // Простейший стрим: отдаём текущий снимок и больше ничего.
+    // Для тестов виджетов этого достаточно.
+    return Stream.value(List.unmodifiable(_store[projectId] ?? const []));
+  }
+
+  @override
+  Future<int> createMaterial({
+    required int projectId,
+    required String name,
+    int quantity = 1,
+    String unit = 'шт',
+    double? price,
+    MaterialStatus status = MaterialStatus.need,
+    String notes = '',
+  }) async {
+    final now = DateTime.now();
+    final id = _nextId++;
+    final item = MaterialItem(
+      id: id.toString(),
+      projectId: projectId.toString(),
+      name: name,
+      quantity: quantity,
+      unit: unit,
+      price: price,
+      status: status,
+      notes: notes,
+      createdAt: now,
+      updatedAt: now,
+    );
+    (_store[projectId] ??= []).add(item);
+    return id;
+  }
+
+  @override
+  Future<bool> updateMaterial({
+    required int id,
+    required String name,
+    required int quantity,
+    required String unit,
+    required double? price,
+    required MaterialStatus status,
+    required String notes,
+  }) async {
+    for (final list in _store.values) {
+      final i = list.indexWhere((m) => m.id == id.toString());
+      if (i >= 0) {
+        final old = list[i];
+        list[i] = old.copyWith(
+          name: name,
+          quantity: quantity,
+          unit: unit,
+          price: price,
+          status: status,
+          notes: notes,
+          updatedAt: DateTime.now(),
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @override
+  Future<bool> updateMaterialStatus(int id, MaterialStatus status) async {
+    for (final list in _store.values) {
+      final i = list.indexWhere((m) => m.id == id.toString());
+      if (i >= 0) {
+        list[i] = list[i].copyWith(status: status, updatedAt: DateTime.now());
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @override
+  Future<int> deleteMaterial(int id) async {
+    for (final list in _store.values) {
+      final before = list.length;
+      list.removeWhere((m) => m.id == id.toString());
+      if (list.length != before) return 1;
+    }
+    return 0;
+  }
+}
+
 void main() {
-  testWidgets('Garage запускается и показывает пустой экран проектов',
-      (WidgetTester tester) async {
+  testWidgets('Garage запускается и показывает пустой экран проектов', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(
       GarageApp(
         projectRepository: FakeProjectRepository(),
         journalRepository: FakeJournalRepository(),
+        materialRepository: FakeMaterialRepository(),
       ),
     );
 
