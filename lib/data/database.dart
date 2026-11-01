@@ -23,7 +23,8 @@ class Projects extends Table {
 // ============================================================
 class JournalEntries extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get projectId => integer()();
+  IntColumn get projectId =>
+      integer().references(Projects, #id, onDelete: KeyAction.cascade)();
   TextColumn get content => text()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
@@ -37,8 +38,9 @@ class JournalEntries extends Table {
 // entryId — без FK, техдолг (добавим вместе с каскадным удалением).
 class EntryPhotos extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get entryId => integer()();
-  BlobColumn get data => blob()();           // Uint8List
+  IntColumn get entryId =>
+      integer().references(JournalEntries, #id, onDelete: KeyAction.cascade)();
+  BlobColumn get data => blob()(); // Uint8List
   DateTimeColumn get createdAt => dateTime()();
 }
 
@@ -50,21 +52,49 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onUpgrade: (m, from, to) async {
-          // v1 → v2: добавили journal_entries
-          if (from < 2) {
-            await m.createTable(journalEntries);
-          }
-          // v2 → v3: добавили entry_photos
-          if (from < 3) {
-            await m.createTable(entryPhotos);
-          }
-        },
-      );
+    onUpgrade: (m, from, to) async {
+      // v1 → v2
+      if (from < 2) {
+        await m.createTable(journalEntries);
+      }
+      // v2 → v3
+      if (from < 3) {
+        await m.createTable(entryPhotos);
+      }
+      // v3 → v4: FK + CASCADE (пересоздание таблиц)
+      if (from < 4) {
+        await customStatement('PRAGMA foreign_keys = OFF');
+
+        await transaction(() async {
+          // Чистим сирот ДО пересоздания таблиц с FK.
+          // 1) Записи журнала без родительского проекта.
+          await customStatement('''
+      DELETE FROM journal_entries
+      WHERE projectId NOT IN (SELECT id FROM projects)
+    ''');
+          // 2) Фото без родительской записи.
+          await customStatement('''
+      DELETE FROM entry_photos
+      WHERE entryId NOT IN (SELECT id FROM journal_entries)
+    ''');
+
+          await m.alterTable(TableMigration(journalEntries));
+          await m.alterTable(TableMigration(entryPhotos));
+        });
+
+        final wrong = await customSelect('PRAGMA foreign_key_check').get();
+        assert(wrong.isEmpty, 'FK violations: ${wrong.map((e) => e.data)}');
+      }
+    },
+    beforeOpen: (details) async {
+      // Обязательно: без этого SQLite игнорирует FK.
+      await customStatement('PRAGMA foreign_keys = ON');
+    },
+  );
 
   static QueryExecutor _openConnection() {
     return driftDatabase(

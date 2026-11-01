@@ -485,6 +485,9 @@ class $JournalEntriesTable extends JournalEntries
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES projects (id) ON DELETE CASCADE',
+    ),
   );
   static const VerificationMeta _contentMeta = const VerificationMeta(
     'content',
@@ -837,6 +840,9 @@ class $EntryPhotosTable extends EntryPhotos
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES journal_entries (id) ON DELETE CASCADE',
+    ),
   );
   static const VerificationMeta _dataMeta = const VerificationMeta('data');
   @override
@@ -1122,6 +1128,23 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     journalEntries,
     entryPhotos,
   ];
+  @override
+  StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'projects',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('journal_entries', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'journal_entries',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('entry_photos', kind: UpdateKind.delete)],
+    ),
+  ]);
 }
 
 typedef $$ProjectsTableCreateCompanionBuilder = ProjectsCompanion Function({
@@ -1142,6 +1165,29 @@ typedef $$ProjectsTableUpdateCompanionBuilder = ProjectsCompanion Function({
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
 });
+
+final class $$ProjectsTableReferences
+    extends BaseReferences<_$AppDatabase, $ProjectsTable, Project> {
+  $$ProjectsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$JournalEntriesTable, List<JournalEntry>>
+  _journalEntriesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.journalEntries,
+    aliasName: 'projects__id__journal_entries__project_id',
+  );
+
+  $$JournalEntriesTableProcessedTableManager get journalEntriesRefs {
+    final manager = $$JournalEntriesTableTableManager(
+      $_db,
+      $_db.journalEntries,
+    ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_journalEntriesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
 
 class $$ProjectsTableFilterComposer
     extends Composer<_$AppDatabase, $ProjectsTable> {
@@ -1186,6 +1232,31 @@ class $$ProjectsTableFilterComposer
     column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
+
+  Expression<bool> journalEntriesRefs(
+    Expression<bool> Function($$JournalEntriesTableFilterComposer f) f,
+  ) {
+    final $$JournalEntriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.journalEntries,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$JournalEntriesTableFilterComposer(
+            $db: $db,
+            $table: $db.journalEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ProjectsTableOrderingComposer
@@ -1266,6 +1337,31 @@ class $$ProjectsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  Expression<T> journalEntriesRefs<T extends Object>(
+    Expression<T> Function($$JournalEntriesTableAnnotationComposer a) f,
+  ) {
+    final $$JournalEntriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.journalEntries,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$JournalEntriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.journalEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ProjectsTableTableManager
@@ -1279,9 +1375,9 @@ class $$ProjectsTableTableManager
           $$ProjectsTableAnnotationComposer,
           $$ProjectsTableCreateCompanionBuilder,
           $$ProjectsTableUpdateCompanionBuilder,
-          (Project, BaseReferences<_$AppDatabase, $ProjectsTable, Project>),
+          (Project, $$ProjectsTableReferences),
           Project,
-          PrefetchHooks Function()
+          PrefetchHooks Function({bool journalEntriesRefs})
         > {
   $$ProjectsTableTableManager(_$AppDatabase db, $ProjectsTable table)
     : super(
@@ -1334,15 +1430,41 @@ class $$ProjectsTableTableManager
               .map(
                 (e) => (
                   e.readTable<$ProjectsTable, Project>(table),
-                  BaseReferences<_$AppDatabase, $ProjectsTable, Project>(
-                    db,
-                    table,
-                    e,
-                  ),
+                  $$ProjectsTableReferences(db, table, e),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: null,
+          prefetchHooksCallback: ({journalEntriesRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (journalEntriesRefs) db.journalEntries,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (journalEntriesRefs)
+                    await $_getPrefetchedData<
+                      Project,
+                      $ProjectsTable,
+                      JournalEntry
+                    >(
+                      currentTable: table,
+                      referencedTable: $$ProjectsTableReferences
+                          ._journalEntriesRefsTable(db),
+                      managerFromTypedResult: (p0) => $$ProjectsTableReferences(
+                        db,
+                        table,
+                        p0,
+                      ).journalEntriesRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.projectId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
         ),
       );
 }
@@ -1357,9 +1479,9 @@ typedef $$ProjectsTableProcessedTableManager =
       $$ProjectsTableAnnotationComposer,
       $$ProjectsTableCreateCompanionBuilder,
       $$ProjectsTableUpdateCompanionBuilder,
-      (Project, BaseReferences<_$AppDatabase, $ProjectsTable, Project>),
+      (Project, $$ProjectsTableReferences),
       Project,
-      PrefetchHooks Function()
+      PrefetchHooks Function({bool journalEntriesRefs})
     >;
 typedef $$JournalEntriesTableCreateCompanionBuilder =
     JournalEntriesCompanion Function({
@@ -1378,6 +1500,50 @@ typedef $$JournalEntriesTableUpdateCompanionBuilder =
       Value<DateTime> updatedAt,
     });
 
+final class $$JournalEntriesTableReferences
+    extends BaseReferences<_$AppDatabase, $JournalEntriesTable, JournalEntry> {
+  $$JournalEntriesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ProjectsTable _projectIdTable(_$AppDatabase db) =>
+      db.projects.createAlias('journal_entries__project_id__projects__id');
+
+  $$ProjectsTableProcessedTableManager get projectId {
+    final $_column = $_itemColumn<int>('project_id')!;
+
+    final manager = $$ProjectsTableTableManager(
+      $_db,
+      $_db.projects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$EntryPhotosTable, List<EntryPhoto>>
+  _entryPhotosRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.entryPhotos,
+    aliasName: 'journal_entries__id__entry_photos__entry_id',
+  );
+
+  $$EntryPhotosTableProcessedTableManager get entryPhotosRefs {
+    final manager = $$EntryPhotosTableTableManager(
+      $_db,
+      $_db.entryPhotos,
+    ).filter((f) => f.entryId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_entryPhotosRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
 class $$JournalEntriesTableFilterComposer
     extends Composer<_$AppDatabase, $JournalEntriesTable> {
   $$JournalEntriesTableFilterComposer({
@@ -1389,11 +1555,6 @@ class $$JournalEntriesTableFilterComposer
   });
   ColumnFilters<int> get id => $composableBuilder(
     column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get projectId => $composableBuilder(
-    column: $table.projectId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1411,6 +1572,54 @@ class $$JournalEntriesTableFilterComposer
     column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
+
+  $$ProjectsTableFilterComposer get projectId {
+    final $$ProjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> entryPhotosRefs(
+    Expression<bool> Function($$EntryPhotosTableFilterComposer f) f,
+  ) {
+    final $$EntryPhotosTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.entryPhotos,
+      getReferencedColumn: (t) => t.entryId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EntryPhotosTableFilterComposer(
+            $db: $db,
+            $table: $db.entryPhotos,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$JournalEntriesTableOrderingComposer
@@ -1424,11 +1633,6 @@ class $$JournalEntriesTableOrderingComposer
   });
   ColumnOrderings<int> get id => $composableBuilder(
     column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
-
-  ColumnOrderings<int> get projectId => $composableBuilder(
-    column: $table.projectId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -1446,6 +1650,29 @@ class $$JournalEntriesTableOrderingComposer
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  $$ProjectsTableOrderingComposer get projectId {
+    final $$ProjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$JournalEntriesTableAnnotationComposer
@@ -1460,9 +1687,6 @@ class $$JournalEntriesTableAnnotationComposer
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<int> get projectId =>
-      $composableBuilder(column: $table.projectId, builder: (column) => column);
-
   GeneratedColumn<String> get content =>
       $composableBuilder(column: $table.content, builder: (column) => column);
 
@@ -1471,6 +1695,54 @@ class $$JournalEntriesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$ProjectsTableAnnotationComposer get projectId {
+    final $$ProjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> entryPhotosRefs<T extends Object>(
+    Expression<T> Function($$EntryPhotosTableAnnotationComposer a) f,
+  ) {
+    final $$EntryPhotosTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.entryPhotos,
+      getReferencedColumn: (t) => t.entryId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EntryPhotosTableAnnotationComposer(
+            $db: $db,
+            $table: $db.entryPhotos,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$JournalEntriesTableTableManager
@@ -1484,12 +1756,9 @@ class $$JournalEntriesTableTableManager
           $$JournalEntriesTableAnnotationComposer,
           $$JournalEntriesTableCreateCompanionBuilder,
           $$JournalEntriesTableUpdateCompanionBuilder,
-          (
-            JournalEntry,
-            BaseReferences<_$AppDatabase, $JournalEntriesTable, JournalEntry>,
-          ),
+          (JournalEntry, $$JournalEntriesTableReferences),
           JournalEntry,
-          PrefetchHooks Function()
+          PrefetchHooks Function({bool projectId, bool entryPhotosRefs})
         > {
   $$JournalEntriesTableTableManager(
     _$AppDatabase db,
@@ -1536,15 +1805,74 @@ class $$JournalEntriesTableTableManager
               .map(
                 (e) => (
                   e.readTable<$JournalEntriesTable, JournalEntry>(table),
-                  BaseReferences<
-                    _$AppDatabase,
-                    $JournalEntriesTable,
-                    JournalEntry
-                  >(db, table, e),
+                  $$JournalEntriesTableReferences(db, table, e),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: null,
+          prefetchHooksCallback:
+              ({projectId = false, entryPhotosRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (entryPhotosRefs) db.entryPhotos,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (projectId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.projectId,
+                            referencedTable: $$JournalEntriesTableReferences
+                                ._projectIdTable(db),
+                            referencedColumn: $$JournalEntriesTableReferences
+                                ._projectIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (entryPhotosRefs)
+                        await $_getPrefetchedData<
+                          JournalEntry,
+                          $JournalEntriesTable,
+                          EntryPhoto
+                        >(
+                          currentTable: table,
+                          referencedTable: $$JournalEntriesTableReferences
+                              ._entryPhotosRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$JournalEntriesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).entryPhotosRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.entryId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
         ),
       );
 }
@@ -1559,12 +1887,9 @@ typedef $$JournalEntriesTableProcessedTableManager =
       $$JournalEntriesTableAnnotationComposer,
       $$JournalEntriesTableCreateCompanionBuilder,
       $$JournalEntriesTableUpdateCompanionBuilder,
-      (
-        JournalEntry,
-        BaseReferences<_$AppDatabase, $JournalEntriesTable, JournalEntry>,
-      ),
+      (JournalEntry, $$JournalEntriesTableReferences),
       JournalEntry,
-      PrefetchHooks Function()
+      PrefetchHooks Function({bool projectId, bool entryPhotosRefs})
     >;
 typedef $$EntryPhotosTableCreateCompanionBuilder =
     EntryPhotosCompanion Function({
@@ -1581,6 +1906,29 @@ typedef $$EntryPhotosTableUpdateCompanionBuilder =
       Value<DateTime> createdAt,
     });
 
+final class $$EntryPhotosTableReferences
+    extends BaseReferences<_$AppDatabase, $EntryPhotosTable, EntryPhoto> {
+  $$EntryPhotosTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $JournalEntriesTable _entryIdTable(_$AppDatabase db) => db
+      .journalEntries
+      .createAlias('entry_photos__entry_id__journal_entries__id');
+
+  $$JournalEntriesTableProcessedTableManager get entryId {
+    final $_column = $_itemColumn<int>('entry_id')!;
+
+    final manager = $$JournalEntriesTableTableManager(
+      $_db,
+      $_db.journalEntries,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_entryIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
 class $$EntryPhotosTableFilterComposer
     extends Composer<_$AppDatabase, $EntryPhotosTable> {
   $$EntryPhotosTableFilterComposer({
@@ -1595,11 +1943,6 @@ class $$EntryPhotosTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get entryId => $composableBuilder(
-    column: $table.entryId,
-    builder: (column) => ColumnFilters(column),
-  );
-
   ColumnFilters<Uint8List> get data => $composableBuilder(
     column: $table.data,
     builder: (column) => ColumnFilters(column),
@@ -1609,6 +1952,29 @@ class $$EntryPhotosTableFilterComposer
     column: $table.createdAt,
     builder: (column) => ColumnFilters(column),
   );
+
+  $$JournalEntriesTableFilterComposer get entryId {
+    final $$JournalEntriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.entryId,
+      referencedTable: $db.journalEntries,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$JournalEntriesTableFilterComposer(
+            $db: $db,
+            $table: $db.journalEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$EntryPhotosTableOrderingComposer
@@ -1625,11 +1991,6 @@ class $$EntryPhotosTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get entryId => $composableBuilder(
-    column: $table.entryId,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<Uint8List> get data => $composableBuilder(
     column: $table.data,
     builder: (column) => ColumnOrderings(column),
@@ -1639,6 +2000,29 @@ class $$EntryPhotosTableOrderingComposer
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  $$JournalEntriesTableOrderingComposer get entryId {
+    final $$JournalEntriesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.entryId,
+      referencedTable: $db.journalEntries,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$JournalEntriesTableOrderingComposer(
+            $db: $db,
+            $table: $db.journalEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$EntryPhotosTableAnnotationComposer
@@ -1653,14 +2037,34 @@ class $$EntryPhotosTableAnnotationComposer
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<int> get entryId =>
-      $composableBuilder(column: $table.entryId, builder: (column) => column);
-
   GeneratedColumn<Uint8List> get data =>
       $composableBuilder(column: $table.data, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$JournalEntriesTableAnnotationComposer get entryId {
+    final $$JournalEntriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.entryId,
+      referencedTable: $db.journalEntries,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$JournalEntriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.journalEntries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$EntryPhotosTableTableManager
@@ -1674,12 +2078,9 @@ class $$EntryPhotosTableTableManager
           $$EntryPhotosTableAnnotationComposer,
           $$EntryPhotosTableCreateCompanionBuilder,
           $$EntryPhotosTableUpdateCompanionBuilder,
-          (
-            EntryPhoto,
-            BaseReferences<_$AppDatabase, $EntryPhotosTable, EntryPhoto>,
-          ),
+          (EntryPhoto, $$EntryPhotosTableReferences),
           EntryPhoto,
-          PrefetchHooks Function()
+          PrefetchHooks Function({bool entryId})
         > {
   $$EntryPhotosTableTableManager(_$AppDatabase db, $EntryPhotosTable table)
     : super(
@@ -1720,15 +2121,49 @@ class $$EntryPhotosTableTableManager
               .map(
                 (e) => (
                   e.readTable<$EntryPhotosTable, EntryPhoto>(table),
-                  BaseReferences<_$AppDatabase, $EntryPhotosTable, EntryPhoto>(
-                    db,
-                    table,
-                    e,
-                  ),
+                  $$EntryPhotosTableReferences(db, table, e),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: null,
+          prefetchHooksCallback: ({entryId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (entryId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.entryId,
+                        referencedTable: $$EntryPhotosTableReferences
+                            ._entryIdTable(db),
+                        referencedColumn: $$EntryPhotosTableReferences
+                            ._entryIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
         ),
       );
 }
@@ -1743,12 +2178,9 @@ typedef $$EntryPhotosTableProcessedTableManager =
       $$EntryPhotosTableAnnotationComposer,
       $$EntryPhotosTableCreateCompanionBuilder,
       $$EntryPhotosTableUpdateCompanionBuilder,
-      (
-        EntryPhoto,
-        BaseReferences<_$AppDatabase, $EntryPhotosTable, EntryPhoto>,
-      ),
+      (EntryPhoto, $$EntryPhotosTableReferences),
       EntryPhoto,
-      PrefetchHooks Function()
+      PrefetchHooks Function({bool entryId})
     >;
 
 class $AppDatabaseManager {
