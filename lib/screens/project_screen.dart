@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../data/journal_repository.dart';
 import '../data/project_repository.dart';
 import '../models/project.dart';
 import '../theme/app_theme.dart';
 import '../screens/journal_screen.dart';
-import '../data/material_repository.dart';
 import '../screens/materials_screen.dart';
+
+import 'package:provider/provider.dart';
 
 /// Экран одного проекта.
 ///
@@ -14,20 +14,8 @@ import '../screens/materials_screen.dart';
 /// Слушает watchProject(id) — если проект удалят или
 /// поменяют статус, экран перерисуется сам.
 class ProjectScreen extends StatefulWidget {
-  const ProjectScreen({
-    super.key,
-    required this.projectRepository,
-    required this.journalRepository,
-    required this.materialRepository,
-    required this.projectId,
-  });
+  const ProjectScreen({super.key, required this.projectId});
 
-  final ProjectRepository projectRepository;
-  final JournalRepository journalRepository;
-  final MaterialRepository materialRepository;
-
-  /// id в БД — int (в модели Project.id — String,
-  /// конвертация происходит на вызывающей стороне).
   final int projectId;
 
   @override
@@ -38,11 +26,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
   /// true, пока идёт удаление — блокируем кнопку и показываем спиннер.
   bool _isDeleting = false;
 
-  // Мостики к полям родителя, чтобы не переписывать весь код ниже.
-  ProjectRepository get projectRepository => widget.projectRepository;
-  JournalRepository get journalRepository => widget.journalRepository;
   int get projectId => widget.projectId;
-  MaterialRepository get materialRepository => widget.materialRepository;
 
   /// Цвет для бейджа статуса (та же логика, что в ProjectCard).
   Color _statusColor(ProjectStatus status) {
@@ -57,6 +41,8 @@ class _ProjectScreenState extends State<ProjectScreen> {
   /// Открыть bottom sheet со списком статусов.
   /// Возвращает выбранный статус или null, если закрыли без выбора.
   Future<void> _openStatusSheet(BuildContext context, Project project) async {
+    final repo = context.read<ProjectRepository>();
+
     final selected = await showModalBottomSheet<ProjectStatus>(
       context: context,
       backgroundColor: AppTheme.surface,
@@ -69,22 +55,14 @@ class _ProjectScreenState extends State<ProjectScreen> {
     if (selected == null) return;
     if (selected == project.status) return; // тот же статус — ничего не делаем
 
-    // Вызываем репозиторий. Стрим watchProject сам пришлёт обновление,
-    // setState не нужен.
-    await projectRepository.updateProjectStatus(
-      int.parse(project.id),
-      selected,
-    );
+    await repo.updateProjectStatus(int.parse(project.id), selected);
   }
 
   /// Открыть экран журнала проекта.
   void _openJournal() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => JournalScreen(
-          journalRepository: journalRepository,
-          projectId: projectId,
-        ),
+        builder: (_) => JournalScreen(projectId: projectId),
       ),
     );
   }
@@ -92,10 +70,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
   void _openMaterials() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => MaterialsScreen(
-          materialRepository: materialRepository,
-          projectId: projectId,
-        ),
+        builder: (_) => MaterialsScreen(projectId: projectId),
       ),
     );
   }
@@ -103,6 +78,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
   /// Диалог подтверждения удаления + само удаление.
   Future<void> _confirmDelete() async {
     // 1. Спрашиваем подтверждение.
+    final repo = context.read<ProjectRepository>();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -140,7 +116,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
     setState(() => _isDeleting = true);
 
     try {
-      await projectRepository.deleteProject(projectId);
+      await repo.deleteProject(projectId);
 
       // 3. ВАЖНО: после await проверяем, что экран ещё жив.
       // Пользователь мог нажать «назад», пока мы ждали БД.
@@ -182,7 +158,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
         ],
       ),
       body: StreamBuilder<Project?>(
-        stream: projectRepository.watchProject(projectId),
+        stream: context.read<ProjectRepository>().watchProject(projectId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

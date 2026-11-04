@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:provider/provider.dart';
 import 'package:garage/models/entry_photo.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:garage/data/journal_repository.dart';
@@ -213,10 +214,13 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      GarageApp(
-        projectRepository: FakeProjectRepository(),
-        journalRepository: FakeJournalRepository(),
-        materialRepository: FakeMaterialRepository(),
+      MultiProvider(
+        providers: [
+          Provider<ProjectRepository>.value(value: FakeProjectRepository()),
+          Provider<JournalRepository>.value(value: FakeJournalRepository()),
+          Provider<MaterialRepository>.value(value: FakeMaterialRepository()),
+        ],
+        child: const GarageApp(),
       ),
     );
 

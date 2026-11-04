@@ -6,16 +6,13 @@ import '../data/material_repository.dart';
 import '../models/material_item.dart';
 import '../theme/app_theme.dart';
 
+import 'package:provider/provider.dart';
+
 /// Экран материалов одного проекта.
 /// Список «есть / нужно / заказано», цена, количество.
 class MaterialsScreen extends StatefulWidget {
-  const MaterialsScreen({
-    super.key,
-    required this.materialRepository,
-    required this.projectId,
-  });
+  const MaterialsScreen({super.key, required this.projectId});
 
-  final MaterialRepository materialRepository;
   final int projectId;
 
   @override
@@ -23,70 +20,67 @@ class MaterialsScreen extends StatefulWidget {
 }
 
 class _MaterialsScreenState extends State<MaterialsScreen> {
-  // Мостик к репозиторию, чтобы не писать widget.materialRepository везде.
-  MaterialRepository get materialRepository => widget.materialRepository;
   int get projectId => widget.projectId;
 
-  /// Открыть sheet создания (material == null) или редактирования.
   Future<void> _openMaterialSheet({MaterialItem? material}) async {
-    final result = await showModalBottomSheet<_MaterialSheetResult>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppTheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => _MaterialSheet(existing: material),
-    );
+  final repo = context.read<MaterialRepository>();   // ← до await
 
-    if (result == null) return; // закрыли без сохранения
+  final result = await showModalBottomSheet<_MaterialSheetResult>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: AppTheme.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (context) => _MaterialSheet(existing: material),
+  );
 
-    try {
-      if (result.action == _MaterialSheetAction.delete) {
-        await materialRepository.deleteMaterial(int.parse(material!.id));
-        return;
-      }
+  if (result == null) return;
 
-      if (material == null) {
-        // create
-        await materialRepository.createMaterial(
-          projectId: projectId,
-          name: result.name,
-          quantity: result.quantity,
-          unit: result.unit,
-          price: result.price,
-          status: result.status,
-          notes: result.notes,
-        );
-      } else {
-        // edit
-        await materialRepository.updateMaterial(
-          id: int.parse(material.id),
-          name: result.name,
-          quantity: result.quantity,
-          unit: result.unit,
-          price: result.price,
-          status: result.status,
-          notes: result.notes,
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Не удалось сохранить: $e'),
-          backgroundColor: Colors.red.shade800,
-        ),
+  try {
+    if (result.action == _MaterialSheetAction.delete) {
+      await repo.deleteMaterial(int.parse(material!.id));   // ← repo
+      return;
+    }
+
+    if (material == null) {
+      await repo.createMaterial(                                 // ← repo
+        projectId: projectId,
+        name: result.name,
+        quantity: result.quantity,
+        unit: result.unit,
+        price: result.price,
+        status: result.status,
+        notes: result.notes,
+      );
+    } else {
+      await repo.updateMaterial(                                 // ← repo
+        id: int.parse(material.id),
+        name: result.name,
+        quantity: result.quantity,
+        unit: result.unit,
+        price: result.price,
+        status: result.status,
+        notes: result.notes,
       );
     }
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Не удалось сохранить: $e'),
+        backgroundColor: Colors.red.shade800,
+      ),
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Материалы')),
       body: StreamBuilder<List<MaterialItem>>(
-        stream: materialRepository.watchMaterials(projectId),
+        stream: context.read<MaterialRepository>().watchMaterials(projectId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

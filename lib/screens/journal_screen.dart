@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:provider/provider.dart';
 
 import '../data/journal_repository.dart';
 import '../models/entry_photo.dart';
@@ -11,13 +12,8 @@ import '../theme/app_theme.dart';
 
 /// Экран журнала одного проекта.
 class JournalScreen extends StatefulWidget {
-  const JournalScreen({
-    super.key,
-    required this.journalRepository,
-    required this.projectId,
-  });
+  const JournalScreen({super.key, required this.projectId});
 
-  final JournalRepository journalRepository;
   final int projectId;
 
   @override
@@ -25,15 +21,15 @@ class JournalScreen extends StatefulWidget {
 }
 
 class _JournalScreenState extends State<JournalScreen> {
-  JournalRepository get journalRepository => widget.journalRepository;
   int get projectId => widget.projectId;
 
   Future<void> _openEntrySheet({JournalEntry? entry}) async {
     // Стрим существующих фото — отдаём sheet'у как стрим (а не List),
     // чтобы StreamBuilder сам перерисовал, когда drift отдаст полный
     // список. При create — null.
+    final repo = context.read<JournalRepository>();
     final existingPhotosStream = entry != null
-        ? journalRepository.watchPhotos(int.parse(entry.id))
+        ? repo.watchPhotos(int.parse(entry.id))
         : null;
 
     final result = await showModalBottomSheet<_EntrySheetResult>(
@@ -57,27 +53,24 @@ class _JournalScreenState extends State<JournalScreen> {
 
           final int entryId;
           if (entry == null) {
-            entryId = await journalRepository.createEntry(
-              projectId: projectId,
-              text: text,
-            );
+            entryId = await repo.createEntry(projectId: projectId, text: text);
           } else {
             entryId = int.parse(entry.id);
-            await journalRepository.updateEntry(entryId, text);
+            await repo.updateEntry(entryId, text);
           }
 
           for (final bytes in result.newPhotos) {
-            await journalRepository.addPhoto(entryId: entryId, data: bytes);
+            await repo.addPhoto(entryId: entryId, data: bytes);
           }
 
           for (final photoId in result.existingPhotoIdsToDelete) {
-            await journalRepository.deletePhoto(photoId);
+            await repo.deletePhoto(photoId);
           }
         }
       case _EntrySheetAction.delete:
         {
           if (entry != null) {
-            await journalRepository.deleteEntry(int.parse(entry.id));
+            await repo.deleteEntry(int.parse(entry.id));
           }
         }
     }
@@ -88,7 +81,7 @@ class _JournalScreenState extends State<JournalScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Журнал')),
       body: StreamBuilder<List<JournalEntry>>(
-        stream: journalRepository.watchEntries(projectId),
+        stream: context.read<JournalRepository>().watchEntries(projectId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -170,7 +163,7 @@ class _JournalScreenState extends State<JournalScreen> {
         return InkWell(
           onTap: () => _openEntrySheet(entry: entry),
           borderRadius: BorderRadius.circular(12),
-          child: _EntryCard(entry: entry, journalRepository: journalRepository),
+          child: _EntryCard(entry: entry),
         );
       },
     );
@@ -179,10 +172,9 @@ class _JournalScreenState extends State<JournalScreen> {
 
 /// Карточка одной записи журнала.
 class _EntryCard extends StatelessWidget {
-  const _EntryCard({required this.entry, required this.journalRepository});
+  const _EntryCard({required this.entry});
 
   final JournalEntry entry;
-  final JournalRepository journalRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +202,9 @@ class _EntryCard extends StatelessWidget {
             style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
           ),
           StreamBuilder<List<EntryPhoto>>(
-            stream: journalRepository.watchPhotos(int.parse(entry.id)),
+            stream: context.read<JournalRepository>().watchPhotos(
+              int.parse(entry.id),
+            ),
             builder: (context, snapshot) {
               final photos = snapshot.data ?? const <EntryPhoto>[];
               if (photos.isEmpty) return const SizedBox.shrink();

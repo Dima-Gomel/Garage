@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'data/database.dart';
 import 'data/project_repository.dart';
@@ -12,31 +13,22 @@ Future<void> main() async {
 
   final database = AppDatabase();
 
-  // Три репозитория поверх одной БД.
-  final projectRepository = ProjectRepository(database);
-  final journalRepository = JournalRepository(database);
-  final materialRepository = MaterialRepository(database);
-
   runApp(
-    GarageApp(
-      projectRepository: projectRepository,
-      journalRepository: journalRepository,
-      materialRepository: materialRepository,
+    MultiProvider(
+      providers: [
+        Provider<ProjectRepository>(create: (_) => ProjectRepository(database)),
+        Provider<JournalRepository>(create: (_) => JournalRepository(database)),
+        Provider<MaterialRepository>(
+          create: (_) => MaterialRepository(database),
+        ),
+      ],
+      child: const GarageApp(),
     ),
   );
 }
 
 class GarageApp extends StatelessWidget {
-  const GarageApp({
-    super.key,
-    required this.projectRepository,
-    required this.journalRepository,
-    required this.materialRepository,
-  });
-
-  final ProjectRepository projectRepository;
-  final JournalRepository journalRepository;
-  final MaterialRepository materialRepository;
+  const GarageApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -44,11 +36,7 @@ class GarageApp extends StatelessWidget {
       title: 'Garage',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      home: ProjectsScreen(
-        projectRepository: projectRepository,
-        journalRepository: journalRepository,
-        materialRepository: materialRepository,
-      ),
+      home: const ProjectsScreen(),
     );
   }
 }

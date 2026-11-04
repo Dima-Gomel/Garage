@@ -1,25 +1,16 @@
 import 'package:flutter/material.dart';
 
-import '../data/journal_repository.dart';
 import '../data/project_repository.dart';
 import '../models/project.dart';
 import '../theme/app_theme.dart';
 import '../widgets/project_card.dart';
 import 'project_screen.dart';
-import '../data/material_repository.dart';
+
+import 'package:provider/provider.dart';
 
 /// Главный экран — список проектов.
 class ProjectsScreen extends StatefulWidget {
-  const ProjectsScreen({
-    super.key,
-    required this.projectRepository,
-    required this.journalRepository,
-    required this.materialRepository,
-  });
-
-  final ProjectRepository projectRepository;
-  final JournalRepository journalRepository;
-  final MaterialRepository materialRepository;
+  const ProjectsScreen({super.key});
 
   @override
   State<ProjectsScreen> createState() => _ProjectsScreenState();
@@ -27,6 +18,7 @@ class ProjectsScreen extends StatefulWidget {
 
 class _ProjectsScreenState extends State<ProjectsScreen> {
   Future<void> _openNewProjectSheet() async {
+    final repo = context.read<ProjectRepository>();
     final result = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -39,19 +31,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
     if (result == null || result.trim().isEmpty) return;
 
-    await widget.projectRepository.createProject(title: result.trim());
+    await repo.createProject(title: result.trim());
   }
 
   /// Открыть экран проекта.
   void _openProject(Project project) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ProjectScreen(
-          projectRepository: widget.projectRepository,
-          journalRepository: widget.journalRepository,
-          materialRepository: widget.materialRepository,
-          projectId: int.parse(project.id),
-        ),
+        builder: (_) => ProjectScreen(projectId: int.parse(project.id)),
       ),
     );
   }
@@ -61,7 +48,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('🔧 Garage')),
       body: StreamBuilder<List<Project>>(
-        stream: widget.projectRepository.watchAllProjects(),
+        stream: context.read<ProjectRepository>().watchAllProjects(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
