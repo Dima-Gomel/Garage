@@ -5,6 +5,7 @@ import '../models/project.dart';
 import '../theme/app_theme.dart';
 import '../screens/journal_screen.dart';
 import '../screens/materials_screen.dart';
+import '../screens/links_screen.dart';
 
 import 'package:provider/provider.dart';
 
@@ -71,6 +72,14 @@ class _ProjectScreenState extends State<ProjectScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => MaterialsScreen(projectId: projectId),
+      ),
+    );
+  }
+
+  void _openLinks() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => LinksScreen(projectId: projectId),
       ),
     );
   }
@@ -202,7 +211,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // «Журнал» + «Материалы» — в ряд, по половине ширины.
+                      // «Журнал» + «Материалы» + «Ссылки» — в ряд, по трети.
                       SizedBox(
                         height: 56,
                         child: Row(
@@ -219,11 +228,15 @@ class _ProjectScreenState extends State<ProjectScreen> {
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                  minimumSize: const Size(0, 56),
                                 ),
                                 child: const Text(
                                   'Журнал',
                                   style: TextStyle(
-                                    fontSize: 16,
+                                    fontSize: 14,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -242,11 +255,42 @@ class _ProjectScreenState extends State<ProjectScreen> {
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                  minimumSize: const Size(0, 56),
                                 ),
                                 child: const Text(
-                                  'Материалы',
+                                  'Материал',
                                   style: TextStyle(
-                                    fontSize: 16,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: _openLinks,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppTheme.accent,
+                                  side: const BorderSide(
+                                    color: AppTheme.accent,
+                                    width: 2,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                  minimumSize: const Size(0, 56),
+                                ),
+                                child: const Text(
+                                  'Ссылки',
+                                  style: TextStyle(
+                                    fontSize: 14,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),

@@ -5,6 +5,7 @@ import 'data/database.dart';
 import 'data/project_repository.dart';
 import 'data/journal_repository.dart';
 import 'data/material_repository.dart';
+import 'data/link_repository.dart';
 import 'screens/projects_screen.dart';
 import 'theme/app_theme.dart';
 
@@ -21,6 +22,7 @@ Future<void> main() async {
         Provider<MaterialRepository>(
           create: (_) => MaterialRepository(database),
         ),
+        Provider<LinkRepository>(create: (_) => LinkRepository(database)),
       ],
       child: const GarageApp(),
     ),

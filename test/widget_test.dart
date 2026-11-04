@@ -1,5 +1,8 @@
 import 'dart:typed_data';
 
+import 'package:garage/data/link_repository.dart';
+import 'package:garage/models/link.dart';
+
 import 'package:provider/provider.dart';
 import 'package:garage/models/entry_photo.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -209,6 +212,96 @@ class FakeMaterialRepository implements MaterialRepository {
   }
 }
 
+// ============================================================
+// FakeLinkRepository — зеркалит LinkRepository
+// ============================================================
+// По правилу: при добавлении метода в репозиторий —
+// СРАЗУ добавь его в фейк.
+class FakeLinkRepository implements LinkRepository {
+  /// Внутреннее хранилище: projectId → список ссылок.
+  final Map<int, List<Link>> _store = {};
+  int _nextId = 1;
+
+  @override
+  Stream<List<Link>> watchLinks(int projectId) {
+    return Stream.value(List.unmodifiable(_store[projectId] ?? const []));
+  }
+
+  @override
+  Future<int> createLink({
+    required int projectId,
+    required String url,
+    String title = '',
+    String notes = '',
+  }) async {
+    final now = DateTime.now();
+    final id = _nextId++;
+    final link = Link(
+      id: id.toString(),
+      projectId: projectId.toString(),
+      url: url,
+      title: title,
+      notes: notes,
+      createdAt: now,
+      updatedAt: now,
+    );
+    (_store[projectId] ??= []).add(link);
+    return id;
+  }
+
+  @override
+  Future<bool> updateLink({
+    required int id,
+    required String url,
+    required String title,
+    required String notes,
+  }) async {
+    for (final list in _store.values) {
+      final i = list.indexWhere((l) => l.id == id.toString());
+      if (i >= 0) {
+        list[i] = list[i].copyWith(
+          url: url,
+          title: title,
+          notes: notes,
+          updatedAt: DateTime.now(),
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @override
+  Future<bool> updateLinkTitleNotes({
+    required int id,
+    required String title,
+    required String notes,
+  }) async {
+    for (final list in _store.values) {
+      final i = list.indexWhere((l) => l.id == id.toString());
+      if (i >= 0) {
+        list[i] = list[i].copyWith(
+          title: title,
+          notes: notes,
+          updatedAt: DateTime.now(),
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @override
+  Future<int> deleteLink(int id) async {
+    for (final list in _store.values) {
+      final before = list.length;
+      list.removeWhere((l) => l.id == id.toString());
+      if (list.length != before) return 1;
+    }
+    return 0;
+  }
+}
+
 void main() {
   testWidgets('Garage запускается и показывает пустой экран проектов', (
     WidgetTester tester,
@@ -219,6 +312,7 @@ void main() {
           Provider<ProjectRepository>.value(value: FakeProjectRepository()),
           Provider<JournalRepository>.value(value: FakeJournalRepository()),
           Provider<MaterialRepository>.value(value: FakeMaterialRepository()),
+          Provider<LinkRepository>.value(value: FakeLinkRepository()),
         ],
         child: const GarageApp(),
       ),

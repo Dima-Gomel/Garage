@@ -64,14 +64,32 @@ class MaterialItems extends Table {
 }
 
 // ============================================================
+// ТАБЛИЦА LINKS
+// ============================================================
+// Ссылки проекта (URL + заметка). title — необязателен,
+// если пусто — UI покажет url вместо него.
+class Links extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get projectId =>
+      integer().references(Projects, #id, onDelete: KeyAction.cascade)();
+  TextColumn get url => text()();
+  TextColumn get title => text().withDefault(const Constant(''))();
+  TextColumn get notes => text().withDefault(const Constant(''))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+}
+
+// ============================================================
 // КЛАСС AppDatabase
 // ============================================================
-@DriftDatabase(tables: [Projects, JournalEntries, EntryPhotos, MaterialItems])
+@DriftDatabase(
+  tables: [Projects, JournalEntries, EntryPhotos, MaterialItems, Links],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -86,7 +104,7 @@ class AppDatabase extends _$AppDatabase {
       }
       // v3 → v4: FK + CASCADE (пересоздание таблиц)
       if (from < 4) {
-        await customStatement('PRAGMA foreign_keys = OFF');
+        await customStatement('PRAGMA foreign_keys = OFF');        
 
         await transaction(() async {
           // Чистим сирот ДО пересоздания таблиц с FK.
@@ -108,6 +126,12 @@ class AppDatabase extends _$AppDatabase {
         final wrong = await customSelect('PRAGMA foreign_key_check').get();
         assert(wrong.isEmpty, 'FK violations: ${wrong.map((e) => e.data)}');
       }
+
+      // v5 → v6: новая таблица ссылок.
+        // createTable сразу с FK — alterTable не нужен, данных нет.
+        if (from < 6) {
+          await m.createTable(links);
+        }
 
       // v4 → v5: новая таблица материалов.
       // createTable сразу с FK — alterTable не нужен, данных в таблице нет.
