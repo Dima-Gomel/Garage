@@ -59,6 +59,41 @@ class _ProjectScreenState extends State<ProjectScreen> {
     await repo.updateProjectStatus(int.parse(project.id), selected);
   }
 
+  /// Открыть bottom sheet «Переключиться на проект».
+  ///
+  /// Возвращает выбранный проект или null. Если выбрали ДРУГОЙ проект —
+  /// делаем pushReplacement, чтобы стек не рос: Projects → Project(B).
+  Future<void> _openProjectSwitcher() async {
+    // Правило №41: репозиторий — ДО await, не после.
+    final repo = context.read<ProjectRepository>();
+
+    final selected = await showModalBottomSheet<Project>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => _ProjectSwitcherSheet(
+        currentProjectId: projectId,
+        projectsStream: repo.watchAllProjects(),
+      ),
+    );
+
+    if (selected == null) return; // закрыли без выбора
+    if (int.parse(selected.id) == projectId) return; // тот же проект
+
+    if (!mounted) return;
+
+    // pushReplacement, а не push — стек не растёт.
+    // «Назад» с нового проекта ведёт на главный, а не в предыдущий.
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => ProjectScreen(projectId: int.parse(selected.id)),
+      ),
+    );
+  }
+
   /// Открыть экран журнала проекта.
   void _openJournal() {
     Navigator.of(context).push(
@@ -128,11 +163,9 @@ class _ProjectScreenState extends State<ProjectScreen> {
       await repo.deleteProject(projectId);
 
       // 3. ВАЖНО: после await проверяем, что экран ещё жив.
-      // Пользователь мог нажать «назад», пока мы ждали БД.
       if (!mounted) return;
 
       // 4. Возвращаемся на главный экран.
-      // Список там обновится сам (watchAllProjects).
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
@@ -152,6 +185,14 @@ class _ProjectScreenState extends State<ProjectScreen> {
       appBar: AppBar(
         title: const Text('Проект'),
         actions: [
+          // Переключение на другой проект — частая операция, левее корзины.
+          IconButton(
+            icon: const Icon(Icons.swap_horiz),
+            color: AppTheme.accent,
+            tooltip: 'Переключиться на проект',
+            onPressed: _openProjectSwitcher,
+          ),
+          // Удаление — опасное действие, правее, отдельно.
           IconButton(
             icon: _isDeleting
                 ? const SizedBox(
@@ -188,7 +229,6 @@ class _ProjectScreenState extends State<ProjectScreen> {
 
           final project = snapshot.data;
 
-          // null — проект удалён (или его никогда не было).
           if (project == null) {
             return const Center(
               child: Text(
@@ -200,10 +240,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
 
           return Column(
             children: [
-              // Контент — скроллится.
               Expanded(child: _buildContent(project)),
-
-              // Кнопки внизу, под большим пальцем.
               SafeArea(
                 top: false,
                 child: Padding(
@@ -211,7 +248,6 @@ class _ProjectScreenState extends State<ProjectScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // «Журнал» + «Материалы» + «Ссылки» — в ряд, по трети.
                       SizedBox(
                         height: 56,
                         child: Row(
@@ -300,7 +336,6 @@ class _ProjectScreenState extends State<ProjectScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      // «Сменить статус» — заливка, главная кнопка.
                       SizedBox(
                         height: 56,
                         width: double.infinity,
@@ -424,6 +459,205 @@ class _ProjectScreenState extends State<ProjectScreen> {
   }
 }
 
+/// Bottom sheet «Переключиться на проект».
+///
+/// Получает СТРИМ (а не снимок), поэтому список живой:
+/// если проект создадут/переименуют — увидим.
+class _ProjectSwitcherSheet extends StatelessWidget {
+  const _ProjectSwitcherSheet({
+    required this.currentProjectId,
+    required this.projectsStream,
+  });
+
+  /// id текущего проекта — помечаем его галочкой и не даём выбрать.
+  final int currentProjectId;
+
+  /// Стрим всех проектов (watchAllProjects).
+  final Stream<List<Project>> projectsStream;
+
+  Color _colorFor(ProjectStatus s) {
+    return switch (s) {
+      ProjectStatus.idea => AppTheme.statusIdea,
+      ProjectStatus.inProgress => AppTheme.statusInProgress,
+      ProjectStatus.frozen => AppTheme.statusFrozen,
+      ProjectStatus.done => AppTheme.statusDone,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppTheme.textSecondary.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'Переключиться на проект',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Список проектов — живой, через StreamBuilder.
+            StreamBuilder<List<Project>>(
+              stream: projectsStream,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      'Ошибка: ${snapshot.error}',
+                      style: const TextStyle(color: AppTheme.textSecondary),
+                    ),
+                  );
+                }
+
+                final projects = snapshot.data ?? const <Project>[];
+
+                // Проектов нет вообще — маловероятно (мы уже в проекте),
+                // но обработаем честно.
+                if (projects.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Проектов нет',
+                      style: TextStyle(color: AppTheme.textSecondary),
+                    ),
+                  );
+                }
+
+                // Есть только текущий — подскажем, что переключаться некуда.
+                if (projects.length == 1) {
+                  return const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Других проектов нет',
+                      style: TextStyle(color: AppTheme.textSecondary),
+                    ),
+                  );
+                }
+
+                // Список проектов. Ограничим высоту, чтобы не улетел
+                // на весь экран при большом количестве проектов.
+                return ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.5,
+                  ),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: projects.length,
+                    itemBuilder: (context, index) {
+                      final project = projects[index];
+                      final isCurrent =
+                          int.parse(project.id) == currentProjectId;
+                      return _ProjectTile(
+                        project: project,
+                        isCurrent: isCurrent,
+                        statusColor: _colorFor(project.status),
+                        onTap: isCurrent
+                            ? null // уже здесь — тап игнорируем
+                            : () => Navigator.of(context).pop(project),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Одна строка в sheet — проект.
+class _ProjectTile extends StatelessWidget {
+  const _ProjectTile({
+    required this.project,
+    required this.isCurrent,
+    required this.statusColor,
+    required this.onTap,
+  });
+
+  final Project project;
+  final bool isCurrent;
+  final Color statusColor;
+
+  /// null — текущий проект, тап не нужен.
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        child: Row(
+          children: [
+            // Цветной кружок статуса — как в _StatusTile.
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.25),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Название проекта — жирнее, если текущий.
+            Expanded(
+              child: Text(
+                project.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+            ),
+            // Галочка на текущем.
+            if (isCurrent) Icon(Icons.check, color: AppTheme.accent, size: 22),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Bottom sheet со списком статусов.
 /// Возвращает выбранный статус через Navigator.pop(status).
 class _StatusSheet extends StatelessWidget {
@@ -458,7 +692,6 @@ class _StatusSheet extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // «Ручка» сверху — визуальная подсказка, что это bottom sheet.
             Container(
               width: 40,
               height: 4,
@@ -481,7 +714,6 @@ class _StatusSheet extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            // Список 4 статусов.
             for (final status in ProjectStatus.values)
               _StatusTile(
                 status: status,
@@ -521,7 +753,6 @@ class _StatusTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         child: Row(
           children: [
-            // Цветной кружок статуса.
             Container(
               width: 20,
               height: 20,
@@ -541,7 +772,6 @@ class _StatusTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 16),
-            // Название статуса — жирнее, если текущий.
             Expanded(
               child: Text(
                 label,
@@ -552,7 +782,6 @@ class _StatusTile extends StatelessWidget {
                 ),
               ),
             ),
-            // Галочка на текущем статусе.
             if (isCurrent) Icon(Icons.check, color: color, size: 22),
           ],
         ),
